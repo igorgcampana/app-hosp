@@ -463,15 +463,36 @@ tbody tr:hover {
   .nav-links {
     width: 100%;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
 
   .nav-btn {
-    padding: 0.5rem;
-    font-size: 0.9rem;
+    padding: 0.6rem;
+    font-size: 0.85rem;
+    flex: 1;
+    text-align: center;
+  }
+
+  .container {
+    padding: 1rem;
+  }
+
+  .title {
+    font-size: 1.5rem;
+  }
+
+  .card {
+    padding: 1.2rem;
   }
 
   .form-row {
     flex-direction: column;
+    gap: 0;
+  }
+
+  .form-group {
+    margin-bottom: 1.2rem;
   }
 
   .screen-header {

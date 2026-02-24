@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Censo Hospitalar - AppHosp</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;500;600;700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300;1,400&display=swap"
+    rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <nav class="navbar">
+    <div class="navbar-brand">
+      <h1>AppHosp</h1>
+    </div>
+    <ul class="nav-links">
+      <li><button class="nav-btn active" data-target="screen-registro">Registro Diário</button></li>
+      <li><button class="nav-btn" data-target="screen-ficha">Ficha de Pacientes</button></li>
+      <li><button class="nav-btn" data-target="screen-calendario">Visão Calendário</button></li>
+    </ul>
+  </nav>
+
+  <main class="container">
+    <!-- TELA 1 — Tela inicial (registro diário) -->
+    <section id="screen-registro" class="screen active">
+      <header class="screen-header">
+        <h2 class="title">Registro Diário</h2>
+        <div class="doctor-selector">
+          <label for="current-doctor">Médico Responsável:</label>
+          <select id="current-doctor">
+            <option value="Beatriz">Beatriz</option>
+            <option value="Eduardo">Eduardo</option>
+            <option value="Felipe Reinaldo">Felipe Reinaldo</option>
+            <option value="Igor">Igor</option>
+            <option value="Tamires">Tamires</option>
+          </select>
+        </div>
+      </header>
+
+      <div class="card form-card">
+        <h3>Novo Registro</h3>
+        <form id="registro-form">
+          <div class="form-group">
+            <label for="pacienteSelect">Selecionar Paciente</label>
+            <select id="pacienteSelect" name="pacienteSelect">
+              <option value="novo">+ Novo Paciente</option>
+            </select>
+          </div>
+          <div class="form-group" id="novoPacienteGroup">
+            <label for="pacienteNome">Nome do Novo Paciente</label>
+            <input type="text" id="pacienteNome" name="pacienteNome" autocomplete="off">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="hospital">Hospital</label>
+              <select id="hospital" name="hospital" required>
+                <option value="HVNS">HVNS</option>
+                <option value="HSL">HSL</option>
+                <option value="H9J">H9J</option>
+                <option value="Outro">Outro</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="dataVisita">Data da Visita</label>
+              <input type="date" id="dataVisita" name="dataVisita" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="numeroVisitas">Total de visitas no dia</label>
+              <input type="number" id="numeroVisitas" name="numeroVisitas" value="1" min="1" max="3" required>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-primary">Registrar Visita</button>
+        </form>
+      </div>
+
+      <div class="card list-card">
+        <h3>Pacientes do Dia Anterior</h3>
+        <div class="table-container">
+          <table id="prev-day-table">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Hospital</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Data injected via JS -->
+            </tbody>
+          </table>
+          <p id="empty-prev-day" class="empty-state">Nenhum paciente registrado no dia anterior.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- TELA 2 — Ficha de pacientes -->
+    <section id="screen-ficha" class="screen">
+      <header class="screen-header">
+        <h2 class="title">Ficha de Pacientes</h2>
+        <div class="filters">
+          <select id="filter-hospital">
+            <option value="Todos">Todos os Hospitais</option>
+            <option value="HVNS">HVNS</option>
+            <option value="HSL">HSL</option>
+            <option value="H9J">H9J</option>
+            <option value="Outro">Outro</option>
+          </select>
+          <select id="filter-status">
+            <option value="Todos">Todos os Status</option>
+            <option value="Ativo">Ativos</option>
+            <option value="Inativo">Inativos</option>
+          </select>
+          <button id="btn-export" class="btn-secondary">Exportar CSV</button>
+        </div>
+      </header>
+
+      <div class="card">
+        <div class="table-container">
+          <table id="patients-table">
+            <thead>
+              <tr>
+                <th data-sort="pacienteNome">Nome &#x21D5;</th>
+                <th data-sort="hospital">Hospital &#x21D5;</th>
+                <th data-sort="status">Status &#x21D5;</th>
+                <th data-sort="dataPrimeiraAvaliacao">1ª Avaliação &#x21D5;</th>
+                <th data-sort="dataUltimaVisita">Última Avaliação &#x21D5;</th>
+                <th data-sort="diasEntre">Dias (1ª a Últ) &#x21D5;</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Data injected via JS -->
+            </tbody>
+          </table>
+          <p id="empty-patients" class="empty-state">Nenhum registro encontrado.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- TELA 3 — Visão Calendário -->
+    <section id="screen-calendario" class="screen">
+      <header class="screen-header">
+        <h2 class="title">Visão Calendário</h2>
+        <div class="filters">
+          <input type="month" id="filter-month">
+          <button id="btn-export-calendar" class="btn-secondary">Exportar CSV</button>
+        </div>
+      </header>
+
+      <div class="card calendar-container">
+        <!-- Rendered dense table from JS -->
+        <div id="calendar-grid"></div>
+      </div>
+    </section>
+    <!-- Modal para Edição de Paciente -->
+    <div id="edit-patient-modal" class="modal-overlay">
+      <div class="card modal-card">
+        <h3>Editar Paciente</h3>
+        <div class="form-group">
+          <label for="edit-nome">Nome do Paciente</label>
+          <input type="text" id="edit-nome">
+        </div>
+        <div class="form-group">
+          <label for="edit-hospital">Hospital</label>
+          <select id="edit-hospital">
+            <option value="HVNS">HVNS</option>
+            <option value="HSL">HSL</option>
+            <option value="H9J">H9J</option>
+            <option value="Outro">Outro</option>
+          </select>
+        </div>
+        <div class="form-row" style="margin-top: 1rem;">
+          <button id="btn-save-edit" class="btn-primary" style="flex:1; margin-right: 0.5rem;">Salvar</button>
+          <button id="btn-cancel-edit" class="btn-secondary" style="flex:1;">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Script that handles everything -->
+  <script src="script.js"></script>
+</body>
+
+</html>

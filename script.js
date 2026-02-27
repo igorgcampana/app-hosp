@@ -7,15 +7,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Check Authentication First
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
-    window.location.href = 'login.html';
+    window.location.replace('login.html');
     return;
   }
 
+  // Reveal body after successful auth
+  document.body.style.visibility = 'visible';
+
   // Bind Logout
-  document.getElementById('btn-logout').addEventListener('click', async () => {
-    await supabase.auth.signOut();
-    window.location.href = 'login.html';
-  });
+  const btnLogout = document.getElementById('btn-logout');
+  if (btnLogout) {
+    btnLogout.addEventListener('click', async (e) => {
+      e.preventDefault();
+      btnLogout.textContent = 'Saindo...';
+      btnLogout.disabled = true;
+      await supabase.auth.signOut();
+      window.location.replace('login.html');
+    });
+  }
 
   // STATE
   let patients = [];

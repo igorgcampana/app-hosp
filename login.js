@@ -32,7 +32,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         if (error) {
-            errorMsg.textContent = "Email ou senha incorretos, ou ocorreu um erro na rede.";
+            console.error("Login Error:", error);
+
+            let msg = "Email ou senha incorretos.";
+            if (error.message.includes("Email not confirmed")) {
+                msg = "E-mail não confirmado. Verifique sua caixa de entrada ou o painel do Supabase.";
+            } else if (error.message.includes("Invalid login")) {
+                msg = "Credenciais inválidas. Verifique o e-mail e a senha copiados.";
+            } else {
+                msg = `Erro: ${error.message}`;
+            }
+
+            errorMsg.textContent = msg;
             errorMsg.style.display = 'block';
             submitBtn.textContent = 'Entrar';
             submitBtn.disabled = false;

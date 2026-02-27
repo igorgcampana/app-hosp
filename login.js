@@ -16,47 +16,49 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    loginForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
+    if (loginForm) {
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
 
-        errorMsg.style.display = 'none';
-        submitBtn.textContent = 'Entrando...';
-        submitBtn.disabled = true;
+            errorMsg.style.display = 'none';
+            submitBtn.textContent = 'Entrando...';
+            submitBtn.disabled = true;
 
-        const email = document.getElementById('email').value.trim();
-        const password = document.getElementById('password').value;
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
 
-        try {
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email: email,
-                password: password,
-            });
+            try {
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: email,
+                    password: password,
+                });
 
-            if (error) {
-                let msg = `Erro: ${error.message}`;
-                if (error.message.includes("Email not confirmed")) {
-                    msg = "E-mail não confirmado. Verifique o painel do Supabase.";
-                } else if (error.message.includes("Invalid login credentials")) {
-                    msg = "E-mail ou senha incorretos.";
+                if (error) {
+                    let msg = `Erro: ${error.message}`;
+                    if (error.message.includes("Email not confirmed")) {
+                        msg = "E-mail não confirmado. Verifique o painel do Supabase.";
+                    } else if (error.message.includes("Invalid login credentials")) {
+                        msg = "E-mail ou senha incorretos.";
+                    }
+                    errorMsg.textContent = msg;
+                    errorMsg.style.display = 'block';
+                    submitBtn.textContent = 'Entrar';
+                    submitBtn.disabled = false;
+                } else if (data?.user) {
+                    window.location.href = 'index.html';
+                } else {
+                    errorMsg.textContent = 'Falha no login: resposta inesperada do servidor. Tente novamente.';
+                    errorMsg.style.display = 'block';
+                    submitBtn.textContent = 'Entrar';
+                    submitBtn.disabled = false;
                 }
-                errorMsg.textContent = msg;
-                errorMsg.style.display = 'block';
-                submitBtn.textContent = 'Entrar';
-                submitBtn.disabled = false;
-            } else if (data?.user) {
-                window.location.href = 'index.html';
-            } else {
-                errorMsg.textContent = 'Falha no login: resposta inesperada do servidor. Tente novamente.';
+            } catch (err) {
+                console.error("Fatal JS Error:", err);
+                errorMsg.textContent = `Erro do Sistema: ${err.message}`;
                 errorMsg.style.display = 'block';
                 submitBtn.textContent = 'Entrar';
                 submitBtn.disabled = false;
             }
-        } catch (err) {
-            console.error("Fatal JS Error:", err);
-            errorMsg.textContent = `Erro do Sistema: ${err.message}`;
-            errorMsg.style.display = 'block';
-            submitBtn.textContent = 'Entrar';
-            submitBtn.disabled = false;
-        }
-    });
+        });
+    }
 });

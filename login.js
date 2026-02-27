@@ -33,24 +33,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
 
             if (error) {
-                console.error("Login Error:", error);
-
-                let msg = "Email ou senha incorretos.";
+                let msg = `Erro: ${error.message}`;
                 if (error.message.includes("Email not confirmed")) {
-                    msg = "E-mail não confirmado. Verifique sua caixa de entrada ou o painel do Supabase.";
-                } else if (error.message.includes("Invalid login")) {
-                    msg = "Credenciais inválidas. Verifique o e-mail e a senha copiados.";
-                } else {
-                    msg = `Erro: ${error.message}`;
+                    msg = "E-mail não confirmado. Verifique o painel do Supabase.";
+                } else if (error.message.includes("Invalid login credentials")) {
+                    msg = "E-mail ou senha incorretos.";
                 }
-
                 errorMsg.textContent = msg;
                 errorMsg.style.display = 'block';
                 submitBtn.textContent = 'Entrar';
                 submitBtn.disabled = false;
-            } else {
-                // Success, redirect to main app
+            } else if (data?.user) {
                 window.location.href = 'index.html';
+            } else {
+                errorMsg.textContent = 'Falha no login: resposta inesperada do servidor. Tente novamente.';
+                errorMsg.style.display = 'block';
+                submitBtn.textContent = 'Entrar';
+                submitBtn.disabled = false;
             }
         } catch (err) {
             console.error("Fatal JS Error:", err);

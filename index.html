@@ -19,9 +19,11 @@
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;500;600;700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300;1,400&display=swap"
-    rel="stylesheet">
+  href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;500;600;700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300;1,400&display=swap"
+  rel="stylesheet">
+
+  <!-- Supabase CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -35,6 +37,8 @@
       <li><button class="nav-btn active" data-target="screen-registro">Registro Diário</button></li>
       <li><button class="nav-btn" data-target="screen-ficha">Ficha de Pacientes</button></li>
       <li><button class="nav-btn" data-target="screen-calendario">Visão Calendário</button></li>
+      <li><button class="nav-btn" id="btn-logout"
+          style="color:#d9534f; border: 1px solid #d9534f; background:transparent">Sair</button></li>
     </ul>
   </nav>
 
@@ -79,6 +83,13 @@
                 <option value="Outro">Outro</option>
               </select>
             </div>
+            <div class="form-group" id="internacaoGroup">
+              <label for="internacao">Internação</label>
+              <select id="internacao" name="internacao" required>
+                <option value="Particular">Particular</option>
+                <option value="Retaguarda">Retaguarda</option>
+              </select>
+            </div>
             <div class="form-group">
               <label for="dataVisita">Data da Visita</label>
               <input type="date" id="dataVisita" name="dataVisita" required>
@@ -89,6 +100,11 @@
             <div class="form-group">
               <label for="numeroVisitas">Total de visitas no dia</label>
               <input type="number" id="numeroVisitas" name="numeroVisitas" value="1" min="1" max="3" required>
+            </div>
+            <div class="form-group checkbox-group"
+              style="align-items: center; justify-content: center; flex-direction: row; gap: 0.5rem; margin-top: 1.5rem;">
+              <input type="checkbox" id="marcarAlta" name="marcarAlta">
+              <label for="marcarAlta" style="margin-bottom: 0;">Dar Alta</label>
             </div>
           </div>
 
@@ -130,8 +146,8 @@
           </select>
           <select id="filter-status">
             <option value="Todos">Todos os Status</option>
-            <option value="Ativo">Ativos</option>
-            <option value="Inativo">Inativos</option>
+            <option value="Internado">Internados</option>
+            <option value="Alta">Altas</option>
           </select>
           <button id="btn-export" class="btn-secondary">Exportar CSV</button>
         </div>
@@ -143,6 +159,7 @@
             <thead>
               <tr>
                 <th data-sort="pacienteNome">Nome &#x21D5;</th>
+                <th data-sort="internacao">Internação &#x21D5;</th>
                 <th data-sort="hospital">Hospital &#x21D5;</th>
                 <th data-sort="status">Status &#x21D5;</th>
                 <th data-sort="dataPrimeiraAvaliacao">1ª Avaliação &#x21D5;</th>
@@ -174,6 +191,24 @@
         <!-- Rendered dense table from JS -->
         <div id="calendar-grid"></div>
       </div>
+
+      <div class="card" style="margin-top: 2rem;">
+        <h3 style="margin-bottom: 1rem;">Total de Visitas Mensal por Médico</h3>
+        <div class="table-container">
+          <table id="summary-table">
+            <thead>
+              <tr>
+                <th>Médico</th>
+                <th>Total Visitas no Mês</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Data injected via JS -->
+            </tbody>
+          </table>
+          <p id="empty-summary" class="empty-state">Sem registros no mês.</p>
+        </div>
+      </div>
     </section>
     <!-- Modal para Edição de Paciente -->
     <div id="edit-patient-modal" class="modal-overlay">
@@ -184,6 +219,13 @@
           <input type="text" id="edit-nome">
         </div>
         <div class="form-group">
+          <label for="edit-internacao">Internação</label>
+          <select id="edit-internacao">
+            <option value="Particular">Particular</option>
+            <option value="Retaguarda">Retaguarda</option>
+          </select>
+        </div>
+        <div class="form-group">
           <label for="edit-hospital">Hospital</label>
           <select id="edit-hospital">
             <option value="HVNS">HVNS</option>
@@ -191,6 +233,11 @@
             <option value="H9J">H9J</option>
             <option value="Outro">Outro</option>
           </select>
+        </div>
+        <div class="form-group checkbox-group"
+          style="align-items: center; flex-direction: row; gap: 0.5rem; margin-top: 1rem;">
+          <input type="checkbox" id="edit-alta">
+          <label for="edit-alta" style="margin-bottom: 0;">Alta Hospitalar</label>
         </div>
         <div class="form-row" style="margin-top: 1rem;">
           <button id="btn-save-edit" class="btn-primary" style="flex:1; margin-right: 0.5rem;">Salvar</button>

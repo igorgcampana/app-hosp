@@ -1,10 +1,28 @@
-document.addEventListener('DOMContentLoaded', () => {
-  // CONSTANTS & STATE
-  const STORAGE_KEY = 'appHospData';
-  let patients = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+const SUPABASE_URL = 'https://gbcnmuppylwznhrticfv.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiY25tdXBweWx3em5ocnRpY2Z2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5NjcwNzUsImV4cCI6MjA4NzU0MzA3NX0.XOQfcNwZSxarlHz2D51MEqlkLJ74TYLpFOUUYVB0Ko0';
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+document.addEventListener('DOMContentLoaded', async () => {
+  // Check Authentication First
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    window.location.href = 'login.html';
+    return;
+  }
+
+  // Bind Logout
+  document.getElementById('btn-logout').addEventListener('click', async () => {
+    await supabase.auth.signOut();
+    window.location.href = 'login.html';
+  });
+
+  // STATE
+  let patients = [];
+  let currentSort = { column: 'dataUltimaVisita', dir: 'desc' };
 
   // DOM Elements - Navigation
-  const navBtns = document.querySelectorAll('.nav-btn');
+  const navBtns = document.querySelectorAll('.nav-btn:not(#btn-logout)');
   const screens = document.querySelectorAll('.screen');
 
   // DOM Elements - Screen 1 (Registro)
@@ -13,12 +31,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const pacienteSelect = document.getElementById('pacienteSelect');
   const novoPacienteGroup = document.getElementById('novoPacienteGroup');
   const inputHospital = document.getElementById('hospital');
+  const inputInternacao = document.getElementById('internacao');
   const inputDataVisita = document.getElementById('dataVisita');
   const inputNumeroVisitas = document.getElementById('numeroVisitas');
+  const inputMarcarAlta = document.getElementById('marcarAlta');
   const selectDoctor = document.getElementById('current-doctor');
-  const suggestionsBox = document.getElementById('autocomplete-suggestions');
   const prevDayTableBody = document.querySelector('#prev-day-table tbody');
   const emptyPrevDay = document.getElementById('empty-prev-day');
+  const btnSubmitRegistro = formRegistro.querySelector('button[type="submit"]');
 
   // DOM Elements - Screen 2 (Ficha)
   const patientsTableBody = document.querySelector('#patients-table tbody');
@@ -32,30 +52,56 @@ document.addEventListener('DOMContentLoaded', () => {
   const filterMonth = document.getElementById('filter-month');
   const btnExportCalendar = document.getElementById('btn-export-calendar');
   const calendarGrid = document.getElementById('calendar-grid');
+  const summaryTableBody = document.querySelector('#summary-table tbody');
+  const emptySummary = document.getElementById('empty-summary');
 
   // DOM Elements - Edit Modal
   const editModal = document.getElementById('edit-patient-modal');
   const editNome = document.getElementById('edit-nome');
   const editHospital = document.getElementById('edit-hospital');
+  const editInternacao = document.getElementById('edit-internacao');
+  const editAlta = document.getElementById('edit-alta');
   const btnSaveEdit = document.getElementById('btn-save-edit');
   const btnCancelEdit = document.getElementById('btn-cancel-edit');
   let currentEditingPatientId = null;
 
-  let currentSort = { column: 'dataUltimaVisita', dir: 'desc' };
+  // Set default date to today
+  const todayDateObj = new Date();
+  const today = todayDateObj.toISOString().split('T')[0];
+  inputDataVisita.value = today;
+  filterMonth.value = today.substring(0, 7); // YYYY-MM
 
-  // INITIALIZATION
-  init();
+  // Mapeia os dados do BD (minúsculo) para o formato esperado localmente
+  function mapPatient(dbPat) {
+    return {
+      id: dbPat.id,
+      pacienteNome: dbPat.pacientenome,
+      hospital: dbPat.hospital,
+      internacao: dbPat.internacao,
+      statusManual: dbPat.statusmanual,
+      dataPrimeiraAvaliacao: dbPat.dataprimeiraavaliacao,
+      dataUltimaVisita: dbPat.dataultimavisita,
+      historico: dbPat.historico || []
+    };
+  }
 
-  function init() {
-    // Set default date to today
-    const today = new Date().toISOString().split('T')[0];
-    inputDataVisita.value = today;
-    filterMonth.value = today.substring(0, 7); // YYYY-MM
+  async function fetchAllData() {
+    const { data, error } = await supabase
+      .from('patients')
+      .select('*, historico(*)');
 
-    migrateData();
+    if (error) {
+      console.error(error);
+      alert('Erro ao carregar os dados. Verifique a conexão.');
+      return;
+    }
+    patients = data.map(mapPatient);
+  }
+
+  async function init() {
+    await fetchAllData();
 
     inputDataVisita.addEventListener('change', renderPrevDayTable);
-
     setupNavigation();
     setupPatientSelect();
     setupForm();
@@ -68,43 +114,15 @@ document.addEventListener('DOMContentLoaded', () => {
     renderCalendar();
   }
 
-  // CORE FUNCTIONS
-  function migrateData() {
-    let changed = false;
-    patients.forEach(p => {
-      if (!p.historico) {
-        p.historico = [];
-        if (p.dataUltimaVisita) {
-          p.historico.push({
-            data: p.dataUltimaVisita,
-            medico: p.medico || 'Não informado',
-            visitas: p.visitas || 1
-          });
-        }
-        changed = true;
-      }
-    });
-    if (changed) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(patients));
-    }
-  }
-
-  function savePatients() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(patients));
-    setupPatientSelect();
-    renderPrevDayTable();
-    renderPatientsTable();
-    renderCalendar();
-  }
-
+  // --- CORE UTILS ---
   function parseDate(dateStr) {
     if (!dateStr) return new Date();
-    // Use parts to avoid timezone issues
     const parts = dateStr.split('-');
     return new Date(parts[0], parts[1] - 1, parts[2]);
   }
 
   function getDaysDifference(date1Str, date2Str) {
+    if (!date1Str || !date2Str) return 0;
     const d1 = parseDate(date1Str);
     const d2 = parseDate(date2Str);
     const diffTime = Math.abs(d2 - d1);
@@ -112,17 +130,19 @@ document.addEventListener('DOMContentLoaded', () => {
     return diffDays + 1; // Inclusive (1 for same day)
   }
 
+  function formatDateBR(dateStr) {
+    if (!dateStr) return '';
+    const p = dateStr.split('-');
+    return `${p[2]}/${p[1]}/${p[0]}`;
+  }
+
   // NAVIGATION
   function setupNavigation() {
     navBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         const targetId = btn.dataset.target;
-
-        // Update buttons
         navBtns.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-
-        // Update screens
         screens.forEach(screen => {
           if (screen.id === targetId) {
             screen.classList.add('active');
@@ -136,73 +156,118 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // SCREEN 1: REGISTRO DIÁRIO
   function setupForm() {
-    formRegistro.addEventListener('submit', (e) => {
+    formRegistro.addEventListener('submit', async (e) => {
       e.preventDefault();
+
+      btnSubmitRegistro.disabled = true;
+      btnSubmitRegistro.textContent = 'Salvando...';
 
       const isNovo = pacienteSelect.value === 'novo';
       const nome = isNovo ? inputNome.value.trim() : '';
       const selectedId = pacienteSelect.value;
       const hospital = inputHospital.value;
+      const internacao = inputInternacao.value;
+      const ehAlta = inputMarcarAlta.checked;
       const dataVisita = inputDataVisita.value;
       let numeroVisitas = parseInt(inputNumeroVisitas.value, 10) || 1;
       if (numeroVisitas > 3) numeroVisitas = 3;
       const medico = selectDoctor.value;
 
-      // Check if patient exists
+      let targetPatientId = selectedId;
       let existingIndex = -1;
+
       if (!isNovo) {
         existingIndex = patients.findIndex(p => p.id === selectedId);
-      } else {
-        existingIndex = patients.findIndex(p => p.pacienteNome.toLowerCase() === nome.toLowerCase());
       }
 
       if (existingIndex >= 0) {
-        // Update existing
+        // Update existing patient
         const p = patients[existingIndex];
 
-        // Find existing record for this date and doctor
-        const histIndex = p.historico.findIndex(h => h.data === dataVisita && h.medico === medico);
-        if (histIndex >= 0) {
-          p.historico[histIndex].visitas = parseInt(p.historico[histIndex].visitas, 10) + numeroVisitas;
-        } else {
-          p.historico.push({ data: dataVisita, medico: medico, visitas: numeroVisitas });
+        // Calcular novas datas baseando-se no novo input tb
+        let allDates = p.historico.map(h => h.data);
+        if (!allDates.includes(dataVisita)) allDates.push(dataVisita);
+
+        const novaUltima = allDates.sort().pop();
+        const novaPrimeira = allDates.sort().shift();
+
+        let novoStatus = p.statusManual;
+        if (ehAlta) {
+          novoStatus = 'Alta';
+        } else if (p.statusManual === 'Alta') {
+          novoStatus = 'Internado';
         }
 
-        p.hospital = hospital;
-        p.dataUltimaVisita = p.historico.map(h => h.data).sort().pop();
-        p.dataPrimeiraAvaliacao = p.historico.map(h => h.data).sort().shift();
-      } else {
-        // Create new
-        const newPatient = {
-          id: Date.now().toString(),
-          pacienteNome: nome,
+        const { error: errUpdate } = await supabase.from('patients').update({
           hospital: hospital,
-          dataPrimeiraAvaliacao: dataVisita,
-          dataUltimaVisita: dataVisita,
-          historico: [{ data: dataVisita, medico: medico, visitas: numeroVisitas }]
-        };
-        patients.push(newPatient);
+          internacao: internacao,
+          statusmanual: novoStatus,
+          dataprimeiraavaliacao: novaPrimeira,
+          dataultimavisita: novaUltima,
+          updated_at: new Date().toISOString()
+        }).eq('id', p.id);
+
+        if (!errUpdate) {
+          // Find existing record for this date and doctor
+          const hist = p.historico.find(h => h.data === dataVisita && h.medico === medico);
+          if (hist) {
+            const novasVisitas = parseInt(hist.visitas, 10) + numeroVisitas;
+            await supabase.from('historico').update({ visitas: novasVisitas }).eq('id', hist.id);
+          } else {
+            await supabase.from('historico').insert({
+              patient_id: p.id,
+              data: dataVisita,
+              medico: medico,
+              visitas: numeroVisitas
+            });
+          }
+        }
+      } else {
+        // Create new patient
+        const { data: newPat, error } = await supabase.from('patients').insert({
+          pacientenome: nome,
+          hospital: hospital,
+          internacao: internacao,
+          statusmanual: ehAlta ? 'Alta' : 'Internado',
+          dataprimeiraavaliacao: dataVisita,
+          dataultimavisita: dataVisita
+        }).select().single();
+
+        if (newPat && !error) {
+          await supabase.from('historico').insert({
+            patient_id: newPat.id,
+            data: dataVisita,
+            medico: medico,
+            visitas: numeroVisitas
+          });
+        }
       }
 
-      savePatients();
+      // Reiniciar após salvar remotamente
+      await fetchAllData();
 
-      // Reset form but keep date and doctor
       inputNome.value = '';
       pacienteSelect.value = 'novo';
       pacienteSelect.dispatchEvent(new Event('change'));
       inputNumeroVisitas.value = '1';
+      inputMarcarAlta.checked = false;
+
+      btnSubmitRegistro.disabled = false;
+      btnSubmitRegistro.textContent = 'Registrar Visita';
+
+      setupPatientSelect();
+      renderPrevDayTable();
+      renderPatientsTable();
+      renderCalendar();
     });
   }
 
   function setupPatientSelect() {
-    // Populate select
-    const today = new Date().toISOString().split('T')[0];
-
-    // Clear and rebuild
     pacienteSelect.innerHTML = '<option value="novo">+ Novo Paciente</option>';
 
-    // Sort active patients (last visit <= 2 days ago = diff <= 3)
+    // Sort active patients (diff <= 3) e não alta manual
     const activePatients = patients.filter(p => {
+      if (p.statusManual === 'Alta') return false;
       const diff = getDaysDifference(p.dataUltimaVisita, today);
       return diff <= 3;
     }).sort((a, b) => a.pacienteNome.localeCompare(b.pacienteNome));
@@ -210,11 +275,10 @@ document.addEventListener('DOMContentLoaded', () => {
     activePatients.forEach(p => {
       const option = document.createElement('option');
       option.value = p.id;
-      option.textContent = `${p.pacienteNome} (${p.hospital} - 1ª aval: ${formatDateBR(p.dataPrimeiraAvaliacao)})`;
+      option.textContent = `${p.pacienteNome} (${p.hospital} / ${p.internacao || 'Particular'} - 1ª aval: ${formatDateBR(p.dataPrimeiraAvaliacao)})`;
       pacienteSelect.appendChild(option);
     });
 
-    // Toggle fields based on selection
     const toggleFields = () => {
       if (pacienteSelect.value === 'novo') {
         novoPacienteGroup.style.display = 'flex';
@@ -223,17 +287,19 @@ document.addEventListener('DOMContentLoaded', () => {
         novoPacienteGroup.style.display = 'none';
         inputNome.removeAttribute('required');
 
-        // Auto-fill hospital for chosen patient
         const selectedId = pacienteSelect.value;
         const p = patients.find(pat => pat.id === selectedId);
         if (p) {
           inputHospital.value = p.hospital;
+          if (p.internacao) {
+            inputInternacao.value = p.internacao;
+          }
         }
       }
     };
 
     pacienteSelect.addEventListener('change', toggleFields);
-    toggleFields(); // Initial run
+    toggleFields();
   }
 
   function renderPrevDayTable() {
@@ -247,8 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const prevDayStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 
-    // Patients whose last visit is the previous day
-    const prevDayPatients = patients.filter(p => p.dataUltimaVisita === prevDayStr);
+    const prevDayPatients = patients.filter(p => p.dataUltimaVisita === prevDayStr && p.statusManual !== 'Alta');
 
     if (prevDayPatients.length === 0) {
       emptyPrevDay.style.display = 'block';
@@ -272,22 +337,38 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  window.addVisitFromList = function (id) {
+  window.addVisitFromList = async function (id) {
     const dataVisita = inputDataVisita.value;
     const medico = selectDoctor.value;
 
-    const idx = patients.findIndex(p => p.id === id);
+    const idx = patients.findIndex(pat => pat.id === id);
     if (idx > -1) {
       const p = patients[idx];
-      const histIndex = p.historico.findIndex(h => h.data === dataVisita && h.medico === medico);
-      if (histIndex >= 0) {
-        p.historico[histIndex].visitas = parseInt(p.historico[histIndex].visitas, 10) + 1;
+      const hist = p.historico.find(h => h.data === dataVisita && h.medico === medico);
+
+      if (hist) {
+        await supabase.from('historico').update({ visitas: parseInt(hist.visitas, 10) + 1 }).eq('id', hist.id);
       } else {
-        p.historico.push({ data: dataVisita, medico: medico, visitas: 1 });
+        await supabase.from('historico').insert({ patient_id: p.id, data: dataVisita, medico: medico, visitas: 1 });
       }
-      p.dataUltimaVisita = p.historico.map(h => h.data).sort().pop();
-      p.dataPrimeiraAvaliacao = p.historico.map(h => h.data).sort().shift();
-      savePatients();
+
+      // Updated Dates
+      let allDates = p.historico.map(h => h.data);
+      if (!allDates.includes(dataVisita)) allDates.push(dataVisita);
+      const novaUltima = allDates.sort().pop();
+      const novaPrimeira = allDates.sort().shift();
+
+      await supabase.from('patients').update({
+        dataultimavisita: novaUltima,
+        dataprimeiraavaliacao: novaPrimeira,
+        updated_at: new Date().toISOString()
+      }).eq('id', p.id);
+
+      await fetchAllData();
+      renderPrevDayTable();
+      renderPatientsTable();
+      renderCalendar();
+      setupPatientSelect();
     }
   };
 
@@ -295,7 +376,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function setupFichaFilters() {
     filterHospital.addEventListener('change', renderPatientsTable);
     if (filterStatus) filterStatus.addEventListener('change', renderPatientsTable);
-
     btnExport.addEventListener('click', exportCSV);
   }
 
@@ -316,20 +396,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderPatientsTable() {
     patientsTableBody.innerHTML = '';
-
     const hospFilter = filterHospital.value;
     const statusFilter = filterStatus.value;
-    const today = new Date().toISOString().split('T')[0];
 
     let filtered = patients.map(p => {
       const diff = getDaysDifference(p.dataUltimaVisita, today);
-      const isAtivo = diff <= 3;
-      return { ...p, isAtivo };
+      let isInternado = true;
+
+      if (p.statusManual === 'Alta') {
+        isInternado = false;
+      } else if (diff > 3) {
+        isInternado = false;
+      }
+
+      return { ...p, isInternado };
     }).filter(p => {
       const matchHosp = hospFilter === 'Todos' || p.hospital === hospFilter;
       const matchStatus = statusFilter === 'Todos' ||
-        (statusFilter === 'Ativo' && p.isAtivo) ||
-        (statusFilter === 'Inativo' && !p.isAtivo);
+        (statusFilter === 'Internado' && p.isInternado) ||
+        (statusFilter === 'Alta' && !p.isInternado);
       return matchHosp && matchStatus;
     });
 
@@ -339,10 +424,9 @@ document.addEventListener('DOMContentLoaded', () => {
       let valB = b[currentSort.column];
 
       if (currentSort.column === 'status') {
-        valA = a.isAtivo ? 0 : 1;
-        valB = b.isAtivo ? 0 : 1;
+        valA = a.isInternado ? 0 : 1;
+        valB = b.isInternado ? 0 : 1;
       }
-
       if (currentSort.column === 'diasEntre') {
         valA = getDaysDifference(a.dataPrimeiraAvaliacao, a.dataUltimaVisita);
         valB = getDaysDifference(b.dataPrimeiraAvaliacao, b.dataUltimaVisita);
@@ -358,7 +442,6 @@ document.addEventListener('DOMContentLoaded', () => {
       patientsTableBody.parentElement.style.display = 'none';
       return;
     }
-
     emptyPatients.style.display = 'none';
     patientsTableBody.parentElement.style.display = 'table';
 
@@ -367,10 +450,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${p.pacienteNome}</td>
+        <td>${p.internacao || 'Particular'}</td>
         <td>${p.hospital}</td>
         <td>
-          <span class="status-badge ${p.isAtivo ? 'ativo' : 'inativo'}">
-            ${p.isAtivo ? 'Ativo' : 'Inativo'}
+          <span class="status-badge ${p.isInternado ? 'ativo' : 'inativo'}">
+            ${p.isInternado ? 'Internado' : 'Alta'}
           </span>
         </td>
         <td>${formatDateBR(p.dataPrimeiraAvaliacao)}</td>
@@ -392,6 +476,12 @@ document.addEventListener('DOMContentLoaded', () => {
     currentEditingPatientId = id;
     editNome.value = p.pacienteNome;
     editHospital.value = p.hospital;
+    if (p.internacao) {
+      editInternacao.value = p.internacao;
+    } else {
+      editInternacao.value = 'Particular';
+    }
+    editAlta.checked = p.statusManual === 'Alta';
 
     editModal.classList.add('active');
   };
@@ -401,47 +491,76 @@ document.addEventListener('DOMContentLoaded', () => {
     currentEditingPatientId = null;
   });
 
-  btnSaveEdit.addEventListener('click', () => {
+  btnSaveEdit.addEventListener('click', async () => {
     if (!currentEditingPatientId) return;
 
     const p = patients.find(pat => pat.id === currentEditingPatientId);
     if (p) {
       const newNome = editNome.value.trim();
       const newHospital = editHospital.value;
+      const newInternacao = editInternacao.value;
+      const ehAlta = editAlta.checked;
 
       if (newNome) {
-        p.pacienteNome = newNome;
-        p.hospital = newHospital;
-        savePatients();
+        let novoStatus = p.statusManual;
+        if (ehAlta) {
+          novoStatus = 'Alta';
+        } else if (p.statusManual === 'Alta') {
+          novoStatus = 'Internado';
+        }
+
+        btnSaveEdit.textContent = 'Aguarde...';
+        btnSaveEdit.disabled = true;
+
+        await supabase.from('patients').update({
+          pacientenome: newNome,
+          hospital: newHospital,
+          internacao: newInternacao,
+          statusmanual: novoStatus,
+          updated_at: new Date().toISOString()
+        }).eq('id', p.id);
+
+        await fetchAllData();
+        renderPatientsTable();
+        setupPatientSelect();
+
+        btnSaveEdit.textContent = 'Salvar';
+        btnSaveEdit.disabled = false;
       } else {
         alert("O nome do paciente não pode ficar vazio.");
         return;
       }
     }
-
     editModal.classList.remove('active');
     currentEditingPatientId = null;
   });
 
-
-
-  window.deletePatient = function (id) {
+  window.deletePatient = async function (id) {
     const p = patients.find(pat => pat.id === id);
     if (!p) return;
-    if (confirm(`Tem certeza que deseja EXCLUIR o paciente ${p.pacienteNome} de TODO o sistema? Esta ação não pode ser desfeita.`)) {
-      patients = patients.filter(pat => pat.id !== id);
-      savePatients();
+    if (confirm(`Tem certeza que deseja EXCLUIR o paciente ${p.pacienteNome} de TODO o sistema? Esta ação apaga os históricos remotamente.`)) {
+      await supabase.from('patients').delete().eq('id', id);
+      await fetchAllData();
+      renderPatientsTable();
+      setupPatientSelect();
+      renderCalendar();
     }
   };
 
   function exportCSV() {
-    let csvContent = "Nome,Hospital,Status,Primeira Avaliacao,Ultima Visita,Dias de Internacao\n";
-    const today = new Date().toISOString().split('T')[0];
+    let csvContent = "Nome,Internação,Hospital,Status,Primeira Avaliacao,Ultima Visita,Dias de Internacao\n";
     patients.forEach(p => {
       const dias = getDaysDifference(p.dataPrimeiraAvaliacao, p.dataUltimaVisita);
-      const isAtivo = getDaysDifference(p.dataUltimaVisita, today) <= 3;
-      const statusStr = isAtivo ? 'Ativo' : 'Inativo';
-      const row = `"${p.pacienteNome}","${p.hospital}","${statusStr}","${formatDateBR(p.dataPrimeiraAvaliacao)}","${formatDateBR(p.dataUltimaVisita)}","${dias}"`;
+      let isInternado = true;
+      if (p.statusManual === 'Alta') {
+        isInternado = false;
+      } else if (getDaysDifference(p.dataUltimaVisita, today) > 3) {
+        isInternado = false;
+      }
+      const statusStr = isInternado ? 'Internado' : 'Alta';
+      const internacaoStr = p.internacao || 'Particular';
+
+      const row = `"${p.pacienteNome}","${internacaoStr}","${p.hospital}","${statusStr}","${formatDateBR(p.dataPrimeiraAvaliacao)}","${formatDateBR(p.dataUltimaVisita)}","${dias}"`;
       csvContent += row + "\n";
     });
 
@@ -463,10 +582,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function exportCalendarCSV() {
     const monthFilter = filterMonth.value;
-
-    // Find all patients that have history in this month
     const monthlyPatients = patients.filter(p => p.historico && p.historico.some(h => h.data.startsWith(monthFilter)));
-
     if (monthlyPatients.length === 0) return;
 
     const visitsByDate = {};
@@ -490,13 +606,12 @@ document.addEventListener('DOMContentLoaded', () => {
     sortedDates.forEach(dateStr => {
       const parsed = parseDate(dateStr);
       const ddmm = String(parsed.getDate()).padStart(2, '0') + '/' + String(parsed.getMonth() + 1).padStart(2, '0');
-
       const docsInDate = visitsByDate[dateStr];
       const sortedDocs = Object.keys(docsInDate).sort();
 
       sortedDocs.forEach((doc, idx) => {
         const col = [];
-        col.push(idx === 0 ? `Mês: ${monthFilter}` : ''); // Add Month to first row
+        col.push(idx === 0 ? `Mês: ${monthFilter}` : '');
         col.push(idx === 0 ? ddmm : '');
         col.push(doc);
 
@@ -509,7 +624,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         col.push(`Total: ${docTotal}`);
         columns.push(col);
-
         if (col.length > maxRows) maxRows = col.length;
       });
     });
@@ -535,17 +649,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderCalendar() {
     calendarGrid.innerHTML = '';
+    summaryTableBody.innerHTML = '';
+
     if (patients.length === 0) return;
 
-    const monthFilter = filterMonth.value; // YYYY-MM
-
-    // Group patients by data from historico array
-    // Only for the selected month
+    const monthFilter = filterMonth.value;
     const visitsByDate = {};
+    const visitsByDoctor = {}; // Para nosso novo painél de histórico mensal
 
     patients.forEach(p => {
       if (!p.historico) return;
-      p.historico.forEach((h, hIdx) => {
+      p.historico.forEach((h) => {
         if (h.data.startsWith(monthFilter)) {
           if (!visitsByDate[h.data]) {
             visitsByDate[h.data] = {};
@@ -555,11 +669,17 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           visitsByDate[h.data][h.medico].push({
             patientId: p.id,
+            histId: h.id, // Supabase id
             pacienteNome: p.pacienteNome,
             hospital: p.hospital,
-            visitas: h.visitas,
-            hIdx: hIdx
+            visitas: h.visitas
           });
+
+          // Computar totais para a tabela "Visitas Mensais"
+          if (!visitsByDoctor[h.medico]) {
+            visitsByDoctor[h.medico] = 0;
+          }
+          visitsByDoctor[h.medico] += parseInt(h.visitas, 10) || 0;
         }
       });
     });
@@ -568,10 +688,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (sortedDates.length === 0) {
       calendarGrid.innerHTML = '<p class="empty-state">Nenhum evento no mês selecionado.</p>';
+      emptySummary.style.display = 'block';
+      summaryTableBody.parentElement.style.display = 'none';
       return;
     }
 
-    // Build columns for each date
+    // Build Calendario Main Grid
     sortedDates.forEach(dateStr => {
       const colDiv = document.createElement('div');
       colDiv.className = 'cal-column';
@@ -587,7 +709,6 @@ document.addEventListener('DOMContentLoaded', () => {
       let dailyTotal = 0;
 
       sortedDocs.forEach(doc => {
-        // Find CSS class for doctor color
         const docClass = doc.split(' ')[0].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         html += `<div style="margin-bottom: 1rem;">`;
         html += `<span class="cal-doctor ${docClass}">${doc}</span>`;
@@ -600,8 +721,8 @@ document.addEventListener('DOMContentLoaded', () => {
                      <strong>${record.pacienteNome}${visitCountIndicator}</strong>
                      <span>${record.hospital}</span>
                      <div class="cal-actions" style="margin-top: 5px; text-align: right;">
-                        <button class="btn-action" title="Editar Visita" onclick="window.editVisit('${record.patientId}', ${record.hIdx})">✏️</button>
-                        <button class="btn-action" title="Excluir Visita" onclick="window.deleteVisit('${record.patientId}', ${record.hIdx})">🗑️</button>
+                        <button class="btn-action" title="Editar Visita" onclick="window.editVisit('${record.patientId}', '${record.histId}')">✏️</button>
+                        <button class="btn-action" title="Excluir Visita" onclick="window.deleteVisit('${record.patientId}', '${record.histId}')">🗑️</button>
                      </div>
                    </div>`;
         });
@@ -614,58 +735,76 @@ document.addEventListener('DOMContentLoaded', () => {
       colDiv.innerHTML = html;
       calendarGrid.appendChild(colDiv);
     });
+
+    // Build Totals Table
+    emptySummary.style.display = 'none';
+    summaryTableBody.parentElement.style.display = 'table';
+
+    Object.keys(visitsByDoctor).sort().forEach(doc => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${doc}</strong></td>
+        <td>${visitsByDoctor[doc]}</td>
+      `;
+      summaryTableBody.appendChild(tr);
+    });
   }
 
-  window.editVisit = function (patientId, hIdx) {
+  window.editVisit = async function (patientId, histId) {
     const p = patients.find(pat => pat.id === patientId);
-    if (!p || !p.historico || !p.historico[hIdx]) return;
-    const h = p.historico[hIdx];
+    if (!p || !p.historico) return;
+    const h = p.historico.find(hi => hi.id === histId);
+    if (!h) return;
 
     const newVisits = prompt(`Editando visitas de ${p.pacienteNome} no dia ${h.data}.\nNovo número de visitas:`, h.visitas);
     if (newVisits !== null && newVisits !== '') {
       const parsed = parseInt(newVisits, 10);
       if (!isNaN(parsed) && parsed > 0) {
-        p.historico[hIdx].visitas = parsed;
-        savePatients();
+        await supabase.from('historico').update({ visitas: parsed }).eq('id', histId);
+        await fetchAllData();
+        renderCalendar();
       }
     }
   };
 
-  window.deleteVisit = function (patientId, hIdx) {
+  window.deleteVisit = async function (patientId, histId) {
     const p = patients.find(pat => pat.id === patientId);
-    if (!p || !p.historico || !p.historico[hIdx]) return;
-    const h = p.historico[hIdx];
+    if (!p || !p.historico) return;
+    const h = p.historico.find(hi => hi.id === histId);
+    if (!h) return;
 
     if (confirm(`Remover o registro de ${p.pacienteNome} do dia ${h.data}?`)) {
-      p.historico.splice(hIdx, 1);
-      if (p.historico.length === 0) {
+      await supabase.from('historico').delete().eq('id', histId);
+
+      const arrayLimitado = p.historico.filter(hi => hi.id !== histId);
+
+      if (arrayLimitado.length === 0) {
         if (confirm(`O paciente ${p.pacienteNome} ficou sem histórico de visitas. Deseja excluí-lo do sistema também?`)) {
-          patients = patients.filter(pat => pat.id !== patientId);
+          await supabase.from('patients').delete().eq('id', patientId);
         } else {
-          p.dataPrimeiraAvaliacao = '';
-          p.dataUltimaVisita = '';
+          await supabase.from('patients').update({
+            dataprimeiraavaliacao: null,
+            dataultimavisita: null
+          }).eq('id', patientId);
         }
       } else {
-        p.dataUltimaVisita = p.historico.map(hi => hi.data).sort().pop();
-        p.dataPrimeiraAvaliacao = p.historico.map(hi => hi.data).sort().shift();
+        const dates = arrayLimitado.map(x => x.data).sort();
+        const novaUltima = dates.pop() || null;
+        const novaPrimeira = dates.shift() || novaUltima;
+
+        await supabase.from('patients').update({
+          dataprimeiraavaliacao: novaPrimeira,
+          dataultimavisita: novaUltima
+        }).eq('id', patientId);
       }
-      savePatients();
+
+      await fetchAllData();
+      renderCalendar();
+      renderPatientsTable();
     }
   };
 
-  // UTILS
-  function formatDateBR(dateStr) {
-    if (!dateStr) return '';
-    const p = dateStr.split('-');
-    return `${p[2]}/${p[1]}/${p[0]}`;
-  }
+  // EXECUTE INITIALIZATION
+  init();
 
-  // Update date automatically if it changes over midnight
-  window.addEventListener('focus', () => {
-    const today = new Date().toISOString().split('T')[0];
-    if (inputDataVisita.value !== today) {
-      // if we want to auto update "today" field on midnight change
-      // inputDataVisita.value = today;
-    }
-  });
 });

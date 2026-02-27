@@ -1,11 +1,11 @@
-const SUPABASE_URL = 'https://gbcnmuppylwznhrticfv.supabase.co';
+const SUPABASE_URL = 'https://gbcnmuppylwznhrticfv.supabaseClient.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdiY25tdXBweWx3em5ocnRpY2Z2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5NjcwNzUsImV4cCI6MjA4NzU0MzA3NX0.XOQfcNwZSxarlHz2D51MEqlkLJ74TYLpFOUUYVB0Ko0';
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Check Authentication First
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await supabaseClient.auth.getSession();
   if (!session) {
     window.location.replace('login.html');
     return;
@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       e.preventDefault();
       btnLogout.textContent = 'Saindo...';
       btnLogout.disabled = true;
-      await supabase.auth.signOut();
+      await supabaseClient.auth.signOut();
       window.location.replace('login.html');
     });
   }
@@ -207,7 +207,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           novoStatus = 'Internado';
         }
 
-        const { error: errUpdate } = await supabase.from('patients').update({
+        const { error: errUpdate } = await supabaseClient.from('patients').update({
           hospital: hospital,
           internacao: internacao,
           statusmanual: novoStatus,
@@ -221,9 +221,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           const hist = p.historico.find(h => h.data === dataVisita && h.medico === medico);
           if (hist) {
             const novasVisitas = parseInt(hist.visitas, 10) + numeroVisitas;
-            await supabase.from('historico').update({ visitas: novasVisitas }).eq('id', hist.id);
+            await supabaseClient.from('historico').update({ visitas: novasVisitas }).eq('id', hist.id);
           } else {
-            await supabase.from('historico').insert({
+            await supabaseClient.from('historico').insert({
               patient_id: p.id,
               data: dataVisita,
               medico: medico,
@@ -233,7 +233,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       } else {
         // Create new patient
-        const { data: newPat, error } = await supabase.from('patients').insert({
+        const { data: newPat, error } = await supabaseClient.from('patients').insert({
           pacientenome: nome,
           hospital: hospital,
           internacao: internacao,
@@ -243,7 +243,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }).select().single();
 
         if (newPat && !error) {
-          await supabase.from('historico').insert({
+          await supabaseClient.from('historico').insert({
             patient_id: newPat.id,
             data: dataVisita,
             medico: medico,
@@ -356,9 +356,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const hist = p.historico.find(h => h.data === dataVisita && h.medico === medico);
 
       if (hist) {
-        await supabase.from('historico').update({ visitas: parseInt(hist.visitas, 10) + 1 }).eq('id', hist.id);
+        await supabaseClient.from('historico').update({ visitas: parseInt(hist.visitas, 10) + 1 }).eq('id', hist.id);
       } else {
-        await supabase.from('historico').insert({ patient_id: p.id, data: dataVisita, medico: medico, visitas: 1 });
+        await supabaseClient.from('historico').insert({ patient_id: p.id, data: dataVisita, medico: medico, visitas: 1 });
       }
 
       // Updated Dates
@@ -367,7 +367,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const novaUltima = allDates.sort().pop();
       const novaPrimeira = allDates.sort().shift();
 
-      await supabase.from('patients').update({
+      await supabaseClient.from('patients').update({
         dataultimavisita: novaUltima,
         dataprimeiraavaliacao: novaPrimeira,
         updated_at: new Date().toISOString()
@@ -521,7 +521,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnSaveEdit.textContent = 'Aguarde...';
         btnSaveEdit.disabled = true;
 
-        await supabase.from('patients').update({
+        await supabaseClient.from('patients').update({
           pacientenome: newNome,
           hospital: newHospital,
           internacao: newInternacao,
@@ -548,7 +548,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const p = patients.find(pat => pat.id === id);
     if (!p) return;
     if (confirm(`Tem certeza que deseja EXCLUIR o paciente ${p.pacienteNome} de TODO o sistema? Esta ação apaga os históricos remotamente.`)) {
-      await supabase.from('patients').delete().eq('id', id);
+      await supabaseClient.from('patients').delete().eq('id', id);
       await fetchAllData();
       renderPatientsTable();
       setupPatientSelect();
@@ -769,7 +769,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (newVisits !== null && newVisits !== '') {
       const parsed = parseInt(newVisits, 10);
       if (!isNaN(parsed) && parsed > 0) {
-        await supabase.from('historico').update({ visitas: parsed }).eq('id', histId);
+        await supabaseClient.from('historico').update({ visitas: parsed }).eq('id', histId);
         await fetchAllData();
         renderCalendar();
       }
@@ -783,15 +783,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!h) return;
 
     if (confirm(`Remover o registro de ${p.pacienteNome} do dia ${h.data}?`)) {
-      await supabase.from('historico').delete().eq('id', histId);
+      await supabaseClient.from('historico').delete().eq('id', histId);
 
       const arrayLimitado = p.historico.filter(hi => hi.id !== histId);
 
       if (arrayLimitado.length === 0) {
         if (confirm(`O paciente ${p.pacienteNome} ficou sem histórico de visitas. Deseja excluí-lo do sistema também?`)) {
-          await supabase.from('patients').delete().eq('id', patientId);
+          await supabaseClient.from('patients').delete().eq('id', patientId);
         } else {
-          await supabase.from('patients').update({
+          await supabaseClient.from('patients').update({
             dataprimeiraavaliacao: null,
             dataultimavisita: null
           }).eq('id', patientId);
@@ -801,7 +801,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const novaUltima = dates.pop() || null;
         const novaPrimeira = dates.shift() || novaUltima;
 
-        await supabase.from('patients').update({
+        await supabaseClient.from('patients').update({
           dataprimeiraavaliacao: novaPrimeira,
           dataultimavisita: novaUltima
         }).eq('id', patientId);

@@ -23,33 +23,41 @@ document.addEventListener('DOMContentLoaded', async () => {
         submitBtn.textContent = 'Entrando...';
         submitBtn.disabled = true;
 
-        const email = document.getElementById('email').value;
+        const email = document.getElementById('email').value.trim();
         const password = document.getElementById('password').value;
 
-        const { data, error } = await supabase.auth.signInWithPassword({
-            email: email,
-            password: password,
-        });
+        try {
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: email,
+                password: password,
+            });
 
-        if (error) {
-            console.error("Login Error:", error);
+            if (error) {
+                console.error("Login Error:", error);
 
-            let msg = "Email ou senha incorretos.";
-            if (error.message.includes("Email not confirmed")) {
-                msg = "E-mail não confirmado. Verifique sua caixa de entrada ou o painel do Supabase.";
-            } else if (error.message.includes("Invalid login")) {
-                msg = "Credenciais inválidas. Verifique o e-mail e a senha copiados.";
+                let msg = "Email ou senha incorretos.";
+                if (error.message.includes("Email not confirmed")) {
+                    msg = "E-mail não confirmado. Verifique sua caixa de entrada ou o painel do Supabase.";
+                } else if (error.message.includes("Invalid login")) {
+                    msg = "Credenciais inválidas. Verifique o e-mail e a senha copiados.";
+                } else {
+                    msg = `Erro: ${error.message}`;
+                }
+
+                errorMsg.textContent = msg;
+                errorMsg.style.display = 'block';
+                submitBtn.textContent = 'Entrar';
+                submitBtn.disabled = false;
             } else {
-                msg = `Erro: ${error.message}`;
+                // Success, redirect to main app
+                window.location.href = 'index.html';
             }
-
-            errorMsg.textContent = msg;
+        } catch (err) {
+            console.error("Fatal JS Error:", err);
+            errorMsg.textContent = `Erro do Sistema: ${err.message}`;
             errorMsg.style.display = 'block';
             submitBtn.textContent = 'Entrar';
             submitBtn.disabled = false;
-        } else {
-            // Success, redirect to main app
-            window.location.href = 'index.html';
         }
     });
 });

@@ -29,7 +29,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     userEmailDisplay.textContent = session.user.email;
   }
 
+  // Reveal body after successful auth
+  document.body.style.visibility = 'visible';
   applyRolePermissions(userRole);
+
 
   // Bind Logout
   const btnLogout = document.getElementById('btn-logout');

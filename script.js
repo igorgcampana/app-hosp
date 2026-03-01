@@ -165,10 +165,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       const navRegistro = document.querySelector('.nav-btn[data-target="screen-registro"]');
       if (navRegistro) {
         navRegistro.style.display = 'none';
-        // Force navigate to Ficha if starting on Registro
-        const fichaBtn = document.querySelector('.nav-btn[data-target="screen-ficha"]');
-        if (fichaBtn) fichaBtn.click();
+        navRegistro.classList.remove('active');
       }
+
+      // Hide Registro screen and show Ficha screen manually
+      const screenRegistro = document.getElementById('screen-registro');
+      const screenFicha = document.getElementById('screen-ficha');
+      const btnFicha = document.querySelector('.nav-btn[data-target="screen-ficha"]');
+
+      if (screenRegistro) screenRegistro.classList.remove('active');
+      if (screenFicha) screenFicha.classList.add('active');
+      if (btnFicha) btnFicha.classList.add('active');
 
       // Add a global class to body to handle CSS-based hiding of action buttons
       document.body.classList.add('role-manager');

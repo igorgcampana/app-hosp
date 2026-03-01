@@ -116,6 +116,14 @@ h6 {
   }
 }
 
+/* Layout */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+
 .screen {
   display: none;
   animation: fadeIn 0.4s ease-out;

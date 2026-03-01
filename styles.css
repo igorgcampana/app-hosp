@@ -96,11 +96,24 @@ h6 {
   font-weight: 600;
 }
 
-/* Layout */
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem;
+/* Navbar User Info */
+#user-email {
+  color: var(--color-secondary);
+  font-weight: 300;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  #user-display {
+    width: 100%;
+    justify-content: center;
+    margin-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 10px;
+  }
 }
 
 .screen {

@@ -23,8 +23,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const userRole = profile?.role || 'doctor';
   console.log("Usuário logado:", session.user.email, "| Papel:", userRole);
 
-  // Reveal body after successful auth
-  document.body.style.visibility = 'visible';
+  // Update user display
+  const userEmailDisplay = document.getElementById('user-email');
+  if (userEmailDisplay && session.user.email) {
+    userEmailDisplay.textContent = session.user.email;
+  }
+
   applyRolePermissions(userRole);
 
   // Bind Logout

@@ -45,8 +45,13 @@
       <li><button class="nav-btn active" data-target="screen-registro">Registro Diário</button></li>
       <li><button class="nav-btn" data-target="screen-ficha">Ficha de Pacientes</button></li>
       <li><button class="nav-btn" data-target="screen-calendario">Visão Calendário</button></li>
-      <li><button class="nav-btn" id="btn-logout"
-          style="color:#d9534f; border: 1px solid #d9534f; background:transparent">Sair</button></li>
+      <li>
+        <span id="user-display" style="display: flex; align-items: center; gap: 10px;">
+          <small id="user-email" style="font-family: var(--font-body); opacity: 0.8; font-size: 0.8rem;"></small>
+          <button class="nav-btn" id="btn-logout"
+            style="color:#d9534f; border: 1px solid #d9534f; background:transparent">Sair</button>
+        </span>
+      </li>
     </ul>
   </nav>
 

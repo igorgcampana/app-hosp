@@ -108,6 +108,15 @@ h6 {
   animation: fadeIn 0.4s ease-out;
 }
 
+/* PERMISSIONS */
+body.role-manager .btn-action,
+body.role-manager #novoPacienteGroup,
+body.role-manager .cal-actions,
+body.role-manager th:last-child,
+body.role-manager td:last-child {
+  display: none !important;
+}
+
 .screen.active {
   display: block;
 }

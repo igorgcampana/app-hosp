@@ -11,8 +11,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
+  // Get User Role
+  const { data: profile, error: profileError } = await supabaseClient
+    .from('profiles')
+    .select('role')
+    .eq('id', session.user.id)
+    .single();
+
+  if (profileError) console.error("Erro ao buscar perfil:", profileError);
+
+  const userRole = profile?.role || 'doctor';
+  console.log("Usuário logado:", session.user.email, "| Papel:", userRole);
+
   // Reveal body after successful auth
   document.body.style.visibility = 'visible';
+  applyRolePermissions(userRole);
 
   // Bind Logout
   const btnLogout = document.getElementById('btn-logout');
@@ -143,6 +156,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!dateStr) return '';
     const p = dateStr.split('-');
     return `${p[2]}/${p[1]}/${p[0]}`;
+  }
+
+  // PERMISSIONS CONTROL
+  function applyRolePermissions(role) {
+    if (role === 'manager') {
+      // Hide "Registro Diário" nav but keep it functional (hidden by CSS/Style)
+      const navRegistro = document.querySelector('.nav-btn[data-target="screen-registro"]');
+      if (navRegistro) {
+        navRegistro.style.display = 'none';
+        // Force navigate to Ficha if starting on Registro
+        const fichaBtn = document.querySelector('.nav-btn[data-target="screen-ficha"]');
+        if (fichaBtn) fichaBtn.click();
+      }
+
+      // Add a global class to body to handle CSS-based hiding of action buttons
+      document.body.classList.add('role-manager');
+    }
   }
 
   // NAVIGATION

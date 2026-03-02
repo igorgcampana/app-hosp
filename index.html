@@ -75,13 +75,7 @@
         <h2 class="title">Registro Diário</h2>
         <div class="doctor-selector">
           <label for="current-doctor">Médico Responsável:</label>
-          <select id="current-doctor">
-            <option value="Beatriz">Beatriz</option>
-            <option value="Eduardo">Eduardo</option>
-            <option value="Felipe Reinaldo">Felipe Reinaldo</option>
-            <option value="Igor">Igor</option>
-            <option value="Tamires">Tamires</option>
-          </select>
+          <select id="current-doctor"></select>
         </div>
       </header>
 
@@ -102,19 +96,11 @@
           <div class="form-row">
             <div class="form-group">
               <label for="hospital">Hospital</label>
-              <select id="hospital" name="hospital" required>
-                <option value="HVNS">HVNS</option>
-                <option value="HSL">HSL</option>
-                <option value="H9J">H9J</option>
-                <option value="Outro">Outro</option>
-              </select>
+              <select id="hospital" name="hospital" required></select>
             </div>
             <div class="form-group" id="internacaoGroup">
               <label for="internacao">Internação</label>
-              <select id="internacao" name="internacao" required>
-                <option value="Particular">Particular</option>
-                <option value="Retaguarda">Retaguarda</option>
-              </select>
+              <select id="internacao" name="internacao" required></select>
             </div>
             <div class="form-group">
               <label for="dataVisita">Data da Visita</label>
@@ -162,18 +148,8 @@
       <header class="screen-header">
         <h2 class="title">Ficha de Pacientes</h2>
         <div class="filters">
-          <select id="filter-hospital">
-            <option value="Todos">Todos os Hospitais</option>
-            <option value="HVNS">HVNS</option>
-            <option value="HSL">HSL</option>
-            <option value="H9J">H9J</option>
-            <option value="Outro">Outro</option>
-          </select>
-          <select id="filter-status">
-            <option value="Todos">Todos os Status</option>
-            <option value="Internado">Internados</option>
-            <option value="Alta">Altas</option>
-          </select>
+          <select id="filter-hospital"></select>
+          <select id="filter-status"></select>
           <button id="btn-export" class="btn-secondary">Exportar CSV</button>
         </div>
       </header>
@@ -246,19 +222,11 @@
         </div>
         <div class="form-group">
           <label for="edit-internacao">Internação</label>
-          <select id="edit-internacao">
-            <option value="Particular">Particular</option>
-            <option value="Retaguarda">Retaguarda</option>
-          </select>
+          <select id="edit-internacao"></select>
         </div>
         <div class="form-group">
           <label for="edit-hospital">Hospital</label>
-          <select id="edit-hospital">
-            <option value="HVNS">HVNS</option>
-            <option value="HSL">HSL</option>
-            <option value="H9J">H9J</option>
-            <option value="Outro">Outro</option>
-          </select>
+          <select id="edit-hospital"></select>
         </div>
         <div class="form-group" style="margin-top: 1rem;">
           <label for="edit-data-primeira">1ª Avaliação</label>
@@ -284,13 +252,7 @@
           style="color: var(--color-text-secondary); margin-bottom: 1rem; font-family: var(--font-body);"></p>
         <div class="form-group">
           <label for="edit-visit-medico">Médico</label>
-          <select id="edit-visit-medico">
-            <option value="Beatriz">Beatriz</option>
-            <option value="Eduardo">Eduardo</option>
-            <option value="Felipe Reinaldo">Felipe Reinaldo</option>
-            <option value="Igor">Igor</option>
-            <option value="Tamires">Tamires</option>
-          </select>
+          <select id="edit-visit-medico"></select>
         </div>
         <div class="form-group">
           <label for="edit-visit-visitas">Total de Visitas no Dia</label>

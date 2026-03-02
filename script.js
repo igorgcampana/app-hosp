@@ -202,6 +202,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     const loader = document.getElementById('app-loader');
     if (loader) loader.remove();
 
+    // Popular selects estáticos a partir das constantes (fonte única de verdade)
+    populateSelect(selectDoctor, DOCTORS);
+    populateSelect(inputHospital, HOSPITALS);
+    populateSelect(inputInternacao, INTERNACAO_TYPES);
+    populateSelect(filterHospital, HOSPITALS, { includeAll: true, allLabel: 'Todos os Hospitais' });
+    // filter-status: labels diferem dos values ("Internados" / "Altas"), criado manualmente
+    filterStatus.innerHTML = '';
+    filterStatus.appendChild(new Option('Todos os Status', 'Todos'));
+    filterStatus.appendChild(new Option('Internados', STATUS.INTERNADO));
+    filterStatus.appendChild(new Option('Altas', STATUS.ALTA));
+    populateSelect(editHospital, HOSPITALS);
+    populateSelect(editInternacao, INTERNACAO_TYPES);
+    populateSelect(editVisitMedico, DOCTORS);
+
+    // Listener do pacienteSelect: registrado UMA ÚNICA VEZ aqui
+    pacienteSelect.addEventListener('change', togglePatientFields);
+
     inputDataVisita.addEventListener('change', () => {
       renderPrevDayTable();
       setupPatientSelect();
@@ -389,6 +406,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // togglePatientFields: extraída do setupPatientSelect para evitar memory leak de listeners acumulados
+  function togglePatientFields() {
+    if (pacienteSelect.value === 'novo') {
+      novoPacienteGroup.style.display = 'flex';
+      inputNome.setAttribute('required', 'true');
+    } else {
+      novoPacienteGroup.style.display = 'none';
+      inputNome.removeAttribute('required');
+      const selectedId = pacienteSelect.value;
+      const p = patients.find(pat => pat.id === selectedId);
+      if (p) {
+        inputHospital.value = p.hospital;
+        if (p.internacao) inputInternacao.value = p.internacao;
+      }
+    }
+  }
+
   function setupPatientSelect() {
     pacienteSelect.innerHTML = '<option value="novo">+ Novo Paciente</option>';
 
@@ -422,27 +456,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       pacienteSelect.appendChild(option);
     });
 
-    const toggleFields = () => {
-      if (pacienteSelect.value === 'novo') {
-        novoPacienteGroup.style.display = 'flex';
-        inputNome.setAttribute('required', 'true');
-      } else {
-        novoPacienteGroup.style.display = 'none';
-        inputNome.removeAttribute('required');
-
-        const selectedId = pacienteSelect.value;
-        const p = patients.find(pat => pat.id === selectedId);
-        if (p) {
-          inputHospital.value = p.hospital;
-          if (p.internacao) {
-            inputInternacao.value = p.internacao;
-          }
-        }
-      }
-    };
-
-    pacienteSelect.addEventListener('change', toggleFields);
-    toggleFields();
+    // Chamada direta — não registra listener (já foi registrado uma vez no init())
+    togglePatientFields();
   }
 
   function renderPrevDayTable() {

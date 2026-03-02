@@ -55,6 +55,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // STATE
   let patients = [];
   let currentSort = { column: 'dataUltimaVisita', dir: 'desc' };
+  let isProcessing = false;
 
   // DOM Elements - Navigation
   const navBtns = document.querySelectorAll('.nav-btn:not(#btn-logout)');

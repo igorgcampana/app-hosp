@@ -623,7 +623,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     emptyPatients.style.display = 'none';
     patientsTableBody.parentElement.style.display = 'table';
 
-    const labels = ['Nome', 'Internação', 'Hospital', 'Status', '1ª Aval.', 'Última', 'Dias', 'Ações'];
+    const labels = ['Nome', 'Internação', 'Hospital', 'Status', '1ª Aval.', 'Última', 'Dias', ''];
 
     filtered.forEach(p => {
       const dias = diasDeInternacao(p.dataPrimeiraAvaliacao, p.dataUltimaVisita);
@@ -782,6 +782,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       btnSaveVisit.disabled = false;
       editVisitModal.classList.remove('active');
       currentEditingVisit = null;
+    });
+
+    // Fechar modais ao clicar no backdrop (overlay)
+    editModal.addEventListener('click', (e) => {
+      if (e.target === editModal) {
+        editModal.classList.remove('active');
+        currentEditingPatientId = null;
+      }
+    });
+
+    editVisitModal.addEventListener('click', (e) => {
+      if (e.target === editVisitModal) {
+        editVisitModal.classList.remove('active');
+        currentEditingVisit = null;
+      }
     });
   }
 

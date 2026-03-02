@@ -111,8 +111,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Set default date to today
   const todayDateObj = new Date();
-  const today = todayDateObj.toISOString().split('T')[0];
+  const today = `${todayDateObj.getFullYear()}-${String(todayDateObj.getMonth() + 1).padStart(2, '0')}-${String(todayDateObj.getDate()).padStart(2, '0')}`;
   inputDataVisita.value = today;
+  inputDataVisita.setAttribute('max', today);
   filterMonth.value = today.substring(0, 7); // YYYY-MM
 
   // --- CORE UTILS ---
@@ -172,7 +173,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function mapPatient(dbPat) {
     return {
       id: dbPat.id,
-      pacienteNome: dbPat.pacientenome,
+      pacienteNome: dbPat.pacientenome || '(Sem nome)',
       hospital: dbPat.hospital,
       internacao: dbPat.internacao,
       statusManual: dbPat.statusmanual,
@@ -215,6 +216,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     populateSelect(editHospital, HOSPITALS);
     populateSelect(editInternacao, INTERNACAO_TYPES);
     populateSelect(editVisitMedico, DOCTORS);
+
+    const savedDoctor = localStorage.getItem('apphosp_doctor');
+    if (savedDoctor && DOCTORS.includes(savedDoctor)) {
+      selectDoctor.value = savedDoctor;
+    }
+    selectDoctor.addEventListener('change', () => {
+      localStorage.setItem('apphosp_doctor', selectDoctor.value);
+    });
 
     // Listener do pacienteSelect: registrado UMA ÚNICA VEZ aqui
     pacienteSelect.addEventListener('change', togglePatientFields);
@@ -391,7 +400,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       inputNome.value = '';
       pacienteSelect.value = 'novo';
-      pacienteSelect.dispatchEvent(new Event('change'));
       inputNumeroVisitas.value = '1';
       inputMarcarAlta.checked = false;
 
@@ -669,6 +677,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderPatientsTable();
       setupPatientSelect();
       renderCalendar();
+      showToast('Paciente excluído com sucesso.');
     }
   }
 

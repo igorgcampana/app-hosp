@@ -875,6 +875,30 @@ document.addEventListener('DOMContentLoaded', async () => {
       csvContent += rowData.join(',') + "\n";
     }
 
+    // Adicionar resumo por médico ao final do CSV
+    csvContent += "\n"; // linha em branco separadora
+    csvContent += '"Total de Visitas Mensal por Médico"\n';
+    csvContent += '"Médico","Total Visitas"\n';
+
+    // Calcular totais por médico (mesma lógica do renderCalendar)
+    const doctorTotals = {};
+    monthlyPatients.forEach(p => {
+      p.historico.forEach(h => {
+        if (h.data.startsWith(monthFilter)) {
+          if (!doctorTotals[h.medico]) doctorTotals[h.medico] = 0;
+          doctorTotals[h.medico] += parseInt(h.visitas, 10) || 0;
+        }
+      });
+    });
+
+    Object.keys(doctorTotals).sort().forEach(doc => {
+      csvContent += `"${doc}","${doctorTotals[doc]}"\n`;
+    });
+
+    // Total geral
+    const totalGeral = Object.values(doctorTotals).reduce((sum, v) => sum + v, 0);
+    csvContent += `"TOTAL GERAL","${totalGeral}"\n`;
+
     const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");

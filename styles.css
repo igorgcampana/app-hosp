@@ -132,11 +132,7 @@ h6 {
 /* PERMISSIONS */
 body.role-manager .btn-action,
 body.role-manager #novoPacienteGroup,
-body.role-manager .cal-actions,
-body.role-manager #patients-table th:last-child,
-body.role-manager #patients-table td:last-child,
-body.role-manager #prev-day-table th:last-child,
-body.role-manager #prev-day-table td:last-child {
+body.role-manager .col-actions {
   display: none !important;
 }
 

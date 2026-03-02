@@ -50,6 +50,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const HOSPITALS = ['HVNS', 'HSL', 'H9J', 'Outro'];
   const INTERNACAO_TYPES = ['Particular', 'Retaguarda'];
   const STATUS = { INTERNADO: 'Internado', ALTA: 'Alta' };
+  const DAYS_ACTIVE_THRESHOLD = 5;
 
   // STATE
   let patients = [];
@@ -125,6 +126,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     return div.innerHTML;
   }
 
+  function escAttr(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
   function showToast(message) {
     const existing = document.querySelector('.toast');
     if (existing) existing.remove();
@@ -133,6 +139,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     toast.textContent = message;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
+  }
+
+  function handleSupabaseError(error, context = '') {
+    console.error(`[AppHosp] ${context}:`, error);
+
+    const code = error?.code || '';
+    const message = error?.message || '';
+
+    if (code === '42501' || message.includes('policy')) {
+      showToast('Sem permissão para esta ação. Contate o administrador.');
+      return;
+    }
+    if (code === '23505') {
+      showToast('Registro duplicado detectado. Verifique os dados.');
+      return;
+    }
+    if (message.includes('Failed to fetch') || message.includes('NetworkError') || message.includes('ERR_NETWORK')) {
+      showToast('Erro de conexão. Verifique sua internet e tente novamente.');
+      return;
+    }
+    if (code === '23503') {
+      showToast('Erro de referência: o registro vinculado não existe mais.');
+      return;
+    }
+
+    showToast(context ? `Erro ao ${context}. Tente novamente.` : 'Erro inesperado. Tente novamente.');
   }
 
   function parseDate(dateStr) {
@@ -157,8 +189,44 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function formatDateBR(dateStr) {
     if (!dateStr) return '';
-    const p = dateStr.split('-');
-    return `${p[2]}/${p[1]}/${p[0]}`;
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return dateStr;
+    return `${parts[2]}/${parts[1]}`;
+  }
+
+  function isPatientActive(patient, referenceDate) {
+    if (patient.statusManual === STATUS.ALTA) return false;
+    if (diffEmDias(patient.dataUltimaVisita, referenceDate) > DAYS_ACTIVE_THRESHOLD) return false;
+    return true;
+  }
+
+  async function recalcPatientDates(patientId) {
+    const { data: histData, error: errHist } = await supabaseClient
+      .from('historico')
+      .select('data')
+      .eq('patient_id', patientId);
+
+    if (errHist) {
+      handleSupabaseError(errHist, 'recalcular datas do paciente');
+      return { error: errHist };
+    }
+
+    let novaPrimeira = null;
+    let novaUltima = null;
+
+    if (histData && histData.length > 0) {
+      const dates = histData.map(h => h.data).sort();
+      novaPrimeira = dates[0];
+      novaUltima = dates[dates.length - 1];
+    }
+
+    const { error: errUpdate } = await supabaseClient.from('patients').update({
+      dataprimeiraavaliacao: novaPrimeira,
+      dataultimavisita: novaUltima
+    }).eq('id', patientId);
+
+    if (errUpdate) handleSupabaseError(errUpdate, 'recalcular datas do paciente');
+    return { error: errUpdate };
   }
 
   function populateSelect(selectEl, options, config = {}) {
@@ -184,16 +252,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function fetchAllData() {
-    const { data, error } = await supabaseClient
+    const { data: patientsData, error: errPat } = await supabaseClient
       .from('patients')
-      .select('*, historico(*)');
+      .select('*');
 
-    if (error) {
-      console.error(error);
-      showToast('Erro ao carregar os dados. Verifique a conexão.');
-      return;
+    const { data: histData, error: errHist } = await supabaseClient
+      .from('historico')
+      .select('id, patient_id, data, medico, visitas');
+
+    if (errPat) { handleSupabaseError(errPat, 'carregar os dados'); return; }
+    if (errHist) { handleSupabaseError(errHist, 'carregar os dados'); return; }
+
+    const historicoMap = new Map();
+    if (histData) {
+      histData.forEach(h => {
+        if (!historicoMap.has(h.patient_id)) {
+          historicoMap.set(h.patient_id, []);
+        }
+        historicoMap.get(h.patient_id).push(h);
+      });
     }
-    patients = data.map(mapPatient);
+
+    patients = patientsData.map(p => ({
+      ...mapPatient(p),
+      historico: historicoMap.get(p.id) || []
+    }));
   }
 
   async function init() {
@@ -287,130 +370,126 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // SCREEN 1: REGISTRO DIÁRIO
+  async function createPatientWithVisit({ nome, hospital, internacao, ehAlta, dataVisita, numeroVisitas, medico }) {
+    const { data: newPat, error } = await supabaseClient.from('patients').insert({
+      pacientenome: nome,
+      hospital: hospital,
+      internacao: internacao,
+      statusmanual: ehAlta ? STATUS.ALTA : STATUS.INTERNADO,
+      dataprimeiraavaliacao: dataVisita,
+      dataultimavisita: dataVisita
+    }).select().single();
+
+    if (error) {
+      handleSupabaseError(error, 'criar paciente');
+      return { success: false };
+    }
+
+    if (newPat) {
+      const { error: errHistInsert } = await supabaseClient.from('historico').insert({
+        patient_id: newPat.id,
+        data: dataVisita,
+        medico: medico,
+        visitas: numeroVisitas
+      });
+      if (errHistInsert) handleSupabaseError(errHistInsert, 'salvar histórico');
+    }
+    return { success: true };
+  }
+
+  async function addVisitToExistingPatient({ selectedId, hospital, internacao, ehAlta, dataVisita, numeroVisitas, medico }) {
+    const p = patients.find(pat => pat.id === selectedId);
+    if (!p) return { success: false };
+
+    let novoStatus = p.statusManual;
+    if (ehAlta) {
+      novoStatus = STATUS.ALTA;
+    } else if (p.statusManual === STATUS.ALTA) {
+      novoStatus = STATUS.INTERNADO;
+    }
+
+    const { error: errUpdate } = await supabaseClient.from('patients').update({
+      hospital: hospital,
+      internacao: internacao,
+      statusmanual: novoStatus
+    }).eq('id', p.id);
+
+    if (errUpdate) {
+      handleSupabaseError(errUpdate, 'atualizar paciente');
+      return { success: false };
+    }
+
+    const hist = p.historico.find(h => h.data === dataVisita && h.medico === medico);
+    if (hist) {
+      const { error: errHistUpdate } = await supabaseClient.from('historico').update({ visitas: parseInt(hist.visitas, 10) + numeroVisitas }).eq('id', hist.id);
+      if (errHistUpdate) handleSupabaseError(errHistUpdate, 'salvar histórico');
+    } else {
+      const { error: errHistInsert } = await supabaseClient.from('historico').insert({
+        patient_id: p.id,
+        data: dataVisita,
+        medico: medico,
+        visitas: numeroVisitas
+      });
+      if (errHistInsert) handleSupabaseError(errHistInsert, 'salvar histórico');
+    }
+
+    await recalcPatientDates(p.id);
+    return { success: true };
+  }
+
   function setupForm() {
     formRegistro.addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      const isNovo = pacienteSelect.value === 'novo';
-      const nome = isNovo ? inputNome.value.trim() : '';
-      const selectedId = pacienteSelect.value;
-      const hospital = inputHospital.value;
-      const internacao = inputInternacao.value;
-      const ehAlta = inputMarcarAlta.checked;
-      const dataVisita = inputDataVisita.value;
-      let numeroVisitas = parseInt(inputNumeroVisitas.value, 10) || 1;
-      if (numeroVisitas > 3) numeroVisitas = 3;
-      const medico = selectDoctor.value;
+      if (isProcessing) return;
+      isProcessing = true;
 
-      // Confirmação de alta
-      if (ehAlta) {
-        const nomeDisplay = isNovo ? nome : patients.find(p => p.id === selectedId)?.pacienteNome || 'paciente';
-        if (!confirm(`Confirma a ALTA de ${nomeDisplay}?`)) {
-          return;
-        }
-      }
+      try {
+        const isNovo = pacienteSelect.value === 'novo';
+        const nome = isNovo ? inputNome.value.trim() : '';
+        const selectedId = pacienteSelect.value;
+        const hospital = inputHospital.value;
+        const internacao = inputInternacao.value;
+        const ehAlta = inputMarcarAlta.checked;
+        const dataVisita = inputDataVisita.value;
+        let numeroVisitas = parseInt(inputNumeroVisitas.value, 10) || 1;
+        if (numeroVisitas > 3) numeroVisitas = 3;
+        const medico = selectDoctor.value;
 
-      btnSubmitRegistro.disabled = true;
-      btnSubmitRegistro.textContent = 'Salvando...';
-
-      let existingIndex = -1;
-      if (!isNovo) {
-        existingIndex = patients.findIndex(p => p.id === selectedId);
-      }
-
-      if (existingIndex >= 0) {
-        // Update existing patient
-        const p = patients[existingIndex];
-
-        let allDates = p.historico.map(h => h.data);
-        if (!allDates.includes(dataVisita)) allDates.push(dataVisita);
-
-        const sortedDates = [...allDates].sort();
-        const novaPrimeira = sortedDates[0];
-        const novaUltima = sortedDates[sortedDates.length - 1];
-
-        let novoStatus = p.statusManual;
         if (ehAlta) {
-          novoStatus = STATUS.ALTA;
-        } else if (p.statusManual === STATUS.ALTA) {
-          novoStatus = STATUS.INTERNADO;
+          const nomeDisplay = isNovo ? nome : patients.find(p => p.id === selectedId)?.pacienteNome || 'paciente';
+          if (!confirm(`Confirma a ALTA de ${nomeDisplay}?`)) return;
         }
 
-        const { error: errUpdate } = await supabaseClient.from('patients').update({
-          hospital: hospital,
-          internacao: internacao,
-          statusmanual: novoStatus,
-          dataprimeiraavaliacao: novaPrimeira,
-          dataultimavisita: novaUltima,
-          updated_at: new Date().toISOString()
-        }).eq('id', p.id);
+        btnSubmitRegistro.disabled = true;
+        btnSubmitRegistro.textContent = 'Salvando...';
 
-        if (errUpdate) {
-          console.error(errUpdate);
-          showToast('Erro ao salvar. Tente novamente.');
-          btnSubmitRegistro.disabled = false;
-          btnSubmitRegistro.textContent = 'Registrar Visita';
-          return;
-        }
-
-        const hist = p.historico.find(h => h.data === dataVisita && h.medico === medico);
-        if (hist) {
-          const { error: errHistUpdate } = await supabaseClient.from('historico').update({ visitas: parseInt(hist.visitas, 10) + numeroVisitas }).eq('id', hist.id);
-          if (errHistUpdate) { console.error(errHistUpdate); showToast('Erro ao salvar histórico.'); }
+        let result;
+        if (isNovo) {
+          result = await createPatientWithVisit({ nome, hospital, internacao, ehAlta, dataVisita, numeroVisitas, medico });
         } else {
-          const { error: errHistInsert } = await supabaseClient.from('historico').insert({
-            patient_id: p.id,
-            data: dataVisita,
-            medico: medico,
-            visitas: numeroVisitas
-          });
-          if (errHistInsert) { console.error(errHistInsert); showToast('Erro ao salvar histórico.'); }
-        }
-      } else {
-        // Create new patient
-        const { data: newPat, error } = await supabaseClient.from('patients').insert({
-          pacientenome: nome,
-          hospital: hospital,
-          internacao: internacao,
-          statusmanual: ehAlta ? STATUS.ALTA : STATUS.INTERNADO,
-          dataprimeiraavaliacao: dataVisita,
-          dataultimavisita: dataVisita
-        }).select().single();
-
-        if (error) {
-          console.error(error);
-          showToast('Erro ao criar paciente. Tente novamente.');
-          btnSubmitRegistro.disabled = false;
-          btnSubmitRegistro.textContent = 'Registrar Visita';
-          return;
+          result = await addVisitToExistingPatient({ selectedId, hospital, internacao, ehAlta, dataVisita, numeroVisitas, medico });
         }
 
-        if (newPat) {
-          const { error: errHistInsert } = await supabaseClient.from('historico').insert({
-            patient_id: newPat.id,
-            data: dataVisita,
-            medico: medico,
-            visitas: numeroVisitas
-          });
-          if (errHistInsert) { console.error(errHistInsert); showToast('Erro ao salvar histórico.'); }
+        if (result && result.success) {
+          await fetchAllData();
+
+          inputNome.value = '';
+          pacienteSelect.value = 'novo';
+          inputNumeroVisitas.value = '1';
+          inputMarcarAlta.checked = false;
+
+          showToast('Visita registrada com sucesso!');
+          setupPatientSelect();
+          renderPrevDayTable();
+          renderPatientsTable();
+          renderCalendar();
         }
+      } finally {
+        isProcessing = false;
+        btnSubmitRegistro.disabled = false;
+        btnSubmitRegistro.textContent = 'Registrar Visita';
       }
-
-      await fetchAllData();
-
-      inputNome.value = '';
-      pacienteSelect.value = 'novo';
-      inputNumeroVisitas.value = '1';
-      inputMarcarAlta.checked = false;
-
-      btnSubmitRegistro.disabled = false;
-      btnSubmitRegistro.textContent = 'Registrar Visita';
-      showToast('Visita registrada com sucesso!');
-
-      setupPatientSelect();
-      renderPrevDayTable();
-      renderPatientsTable();
-      renderCalendar();
     });
   }
 
@@ -436,10 +515,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const dataRef = inputDataVisita.value || today;
 
-    const activePatients = patients.filter(p => {
-      if (p.statusManual === STATUS.ALTA) return false;
-      return diffEmDias(p.dataUltimaVisita, dataRef) <= 3;
-    });
+    const activePatients = patients.filter(p => isPatientActive(p, dataRef));
 
     // Deduplicar no frontend pelo nome
     const uniqueMap = new Map();
@@ -473,12 +549,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const selectedDateStr = inputDataVisita.value;
     if (!selectedDateStr) return;
 
-    // Mostrar pacientes com última visita entre 1 e 5 dias atrás (em relação à data selecionada)
+    // Mostrar pacientes com última visita entre 1 e limite dias atrás
     const prevDayPatients = patients.filter(p => {
-      if (p.statusManual === STATUS.ALTA) return false;
+      if (!isPatientActive(p, selectedDateStr)) return false;
       if (p.dataUltimaVisita >= selectedDateStr) return false;
       const diff = diffEmDias(p.dataUltimaVisita, selectedDateStr);
-      return diff >= 1 && diff <= 5;
+      return diff >= 1 && diff <= DAYS_ACTIVE_THRESHOLD;
     });
 
     if (prevDayPatients.length === 0) {
@@ -495,8 +571,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       tr.innerHTML = `
         <td>${esc(p.pacienteNome)}</td>
         <td>${esc(p.hospital)}</td>
-        <td>
-           <button class="btn-action" title="Registrar 1 visita para a data selecionada" data-action="add-visit" data-patient-id="${p.id}">➕</button>
+        <td class="col-actions">
+           <button class="btn-action" title="Registrar 1 visita para a data selecionada" data-action="add-visit" data-patient-id="${escAttr(p.id)}">➕</button>
         </td>
       `;
       prevDayTableBody.appendChild(tr);
@@ -519,24 +595,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (hist) {
           const { error } = await supabaseClient.from('historico').update({ visitas: parseInt(hist.visitas, 10) + 1 }).eq('id', hist.id);
-          if (error) { console.error(error); showToast('Erro ao salvar. Tente novamente.'); return; }
+          if (error) { handleSupabaseError(error, 'adicionar visita'); return; }
         } else {
           const { error } = await supabaseClient.from('historico').insert({ patient_id: p.id, data: dataVisita, medico: medico, visitas: 1 });
-          if (error) { console.error(error); showToast('Erro ao salvar. Tente novamente.'); return; }
+          if (error) { handleSupabaseError(error, 'adicionar visita'); return; }
         }
 
-        let allDates = p.historico.map(h => h.data);
-        if (!allDates.includes(dataVisita)) allDates.push(dataVisita);
-        const sortedDates = [...allDates].sort();
-        const novaUltima = sortedDates[sortedDates.length - 1];
-        const novaPrimeira = sortedDates[0];
-
-        const { error: errPat } = await supabaseClient.from('patients').update({
-          dataultimavisita: novaUltima,
-          dataprimeiraavaliacao: novaPrimeira,
-          updated_at: new Date().toISOString()
-        }).eq('id', p.id);
-        if (errPat) { console.error(errPat); showToast('Erro ao salvar. Tente novamente.'); return; }
+        await recalcPatientDates(p.id);
 
         await fetchAllData();
         renderPrevDayTable();
@@ -557,6 +622,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnExport.addEventListener('click', exportCSV);
   }
 
+  function getFilteredPatients() {
+    const hospFilter = filterHospital.value;
+    const statusFilter = filterStatus ? filterStatus.value : 'Todos';
+
+    return patients.map(p => {
+      const isInternado = isPatientActive(p, today);
+      return { ...p, isInternado };
+    }).filter(p => {
+      const matchHosp = hospFilter === 'Todos' || p.hospital === hospFilter;
+      const matchStatus = statusFilter === 'Todos' ||
+        (statusFilter === STATUS.INTERNADO && p.isInternado) ||
+        (statusFilter === STATUS.ALTA && !p.isInternado);
+      return matchHosp && matchStatus;
+    });
+  }
+
   function setupSorting() {
     thSortables.forEach(th => {
       th.addEventListener('click', () => {
@@ -574,27 +655,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderPatientsTable() {
     patientsTableBody.innerHTML = '';
-    const hospFilter = filterHospital.value;
-    const statusFilter = filterStatus.value;
-
-    let filtered = patients.map(p => {
-      const diff = diffEmDias(p.dataUltimaVisita, today);
-      let isInternado = true;
-
-      if (p.statusManual === STATUS.ALTA) {
-        isInternado = false;
-      } else if (diff > 3) {
-        isInternado = false;
-      }
-
-      return { ...p, isInternado };
-    }).filter(p => {
-      const matchHosp = hospFilter === 'Todos' || p.hospital === hospFilter;
-      const matchStatus = statusFilter === 'Todos' ||
-        (statusFilter === STATUS.INTERNADO && p.isInternado) ||
-        (statusFilter === STATUS.ALTA && !p.isInternado);
-      return matchHosp && matchStatus;
-    });
+    const filtered = getFilteredPatients();
 
     // Sort
     filtered.sort((a, b) => {
@@ -640,9 +701,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${formatDateBR(p.dataPrimeiraAvaliacao)}</td>
         <td>${formatDateBR(p.dataUltimaVisita)}</td>
         <td>${dias}</td>
-        <td>
-           <button class="btn-action" title="Editar Nome e Hospital" data-action="edit-patient" data-patient-id="${p.id}">✏️</button>
-           <button class="btn-action" title="Excluir Paciente" data-action="delete-patient" data-patient-id="${p.id}">🗑️</button>
+        <td class="col-actions">
+           <button class="btn-action" title="Editar Nome e Hospital" data-action="edit-patient" data-patient-id="${escAttr(p.id)}">✏️</button>
+           <button class="btn-action" title="Excluir Paciente" data-action="delete-patient" data-patient-id="${escAttr(p.id)}">🗑️</button>
         </td>
       `;
       // Adicionar data-label para mobile responsivo
@@ -672,7 +733,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!p) return;
     if (confirm(`Tem certeza que deseja EXCLUIR o paciente ${p.pacienteNome} de TODO o sistema? Esta ação apaga os históricos remotamente.`)) {
       const { error } = await supabaseClient.from('patients').delete().eq('id', id);
-      if (error) { console.error(error); showToast('Erro ao excluir paciente.'); return; }
+      if (error) { handleSupabaseError(error, 'excluir paciente'); return; }
       await fetchAllData();
       renderPatientsTable();
       setupPatientSelect();
@@ -688,6 +749,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     btnSaveEdit.addEventListener('click', async () => {
+      if (isProcessing) return;
       if (!currentEditingPatientId) return;
 
       const p = patients.find(pat => pat.id === currentEditingPatientId);
@@ -698,6 +760,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const ehAlta = editAlta.checked;
 
         if (newNome) {
+          isProcessing = true;
           let novoStatus = p.statusManual;
           if (ehAlta) {
             novoStatus = STATUS.ALTA;
@@ -708,24 +771,30 @@ document.addEventListener('DOMContentLoaded', async () => {
           btnSaveEdit.textContent = 'Aguarde...';
           btnSaveEdit.disabled = true;
 
-          const { error } = await supabaseClient.from('patients').update({
-            pacientenome: newNome,
-            hospital: newHospital,
-            internacao: newInternacao,
-            statusmanual: novoStatus,
-            dataprimeiraavaliacao: editDataPrimeira.value || p.dataPrimeiraAvaliacao,
-            updated_at: new Date().toISOString()
-          }).eq('id', p.id);
+          try {
+            const { error } = await supabaseClient.from('patients').update({
+              pacientenome: newNome,
+              hospital: newHospital,
+              internacao: newInternacao,
+              statusmanual: novoStatus,
+              dataprimeiraavaliacao: editDataPrimeira.value || p.dataPrimeiraAvaliacao
+            }).eq('id', p.id);
 
-          btnSaveEdit.textContent = 'Salvar';
-          btnSaveEdit.disabled = false;
+            if (error) {
+              handleSupabaseError(error, 'salvar edição');
+              return;
+            }
 
-          if (error) { console.error(error); showToast('Erro ao salvar. Tente novamente.'); return; }
-
-          await fetchAllData();
-          renderPatientsTable();
-          setupPatientSelect();
-          showToast('Paciente atualizado com sucesso!');
+            await recalcPatientDates(p.id);
+            await fetchAllData();
+            renderPatientsTable();
+            setupPatientSelect();
+            showToast('Paciente atualizado!');
+          } finally {
+            isProcessing = false;
+            btnSaveEdit.textContent = 'Salvar';
+            btnSaveEdit.disabled = false;
+          }
         } else {
           alert("O nome do paciente não pode ficar vazio.");
           return;
@@ -741,6 +810,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     btnSaveVisit.addEventListener('click', async () => {
+      if (isProcessing) return;
       if (!currentEditingVisit) return;
       const { patientId, histId } = currentEditingVisit;
       const parsed = parseInt(editVisitVisitas.value, 10);
@@ -749,39 +819,43 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
+      isProcessing = true;
       btnSaveVisit.textContent = 'Aguarde...';
       btnSaveVisit.disabled = true;
 
-      const newMedico = editVisitMedico.value;
-      const p = patients.find(pat => pat.id === patientId);
-      const h = p.historico.find(hi => hi.id === histId);
+      try {
+        const newMedico = editVisitMedico.value;
+        const p = patients.find(pat => pat.id === patientId);
+        const h = p.historico.find(hi => hi.id === histId);
 
-      if (h.medico !== newMedico) {
-        const existingForNewDoc = p.historico.find(hi => hi.data === h.data && hi.medico === newMedico && hi.id !== histId);
-        if (existingForNewDoc) {
-          const { error: e1 } = await supabaseClient.from('historico').update({ visitas: parseInt(existingForNewDoc.visitas, 10) + parsed }).eq('id', existingForNewDoc.id);
-          if (e1) { console.error(e1); showToast('Erro ao salvar. Tente novamente.'); }
-          const { error: e2 } = await supabaseClient.from('historico').delete().eq('id', histId);
-          if (e2) { console.error(e2); }
+        if (h.medico !== newMedico) {
+          const existingForNewDoc = p.historico.find(hi => hi.data === h.data && hi.medico === newMedico && hi.id !== histId);
+          if (existingForNewDoc) {
+            const { error: e1 } = await supabaseClient.from('historico').update({ visitas: parseInt(existingForNewDoc.visitas, 10) + parsed }).eq('id', existingForNewDoc.id);
+            if (e1) { handleSupabaseError(e1, 'salvar visita'); return; }
+            const { error: e2 } = await supabaseClient.from('historico').delete().eq('id', histId);
+            if (e2) console.error(e2);
+          } else {
+            const { error: e1 } = await supabaseClient.from('historico').insert({ patient_id: patientId, data: h.data, medico: newMedico, visitas: parsed });
+            if (e1) { handleSupabaseError(e1, 'salvar visita'); return; }
+            const { error: e2 } = await supabaseClient.from('historico').delete().eq('id', histId);
+            if (e2) console.error(e2);
+          }
         } else {
-          const { error: e1 } = await supabaseClient.from('historico').insert({ patient_id: patientId, data: h.data, medico: newMedico, visitas: parsed });
-          if (e1) { console.error(e1); showToast('Erro ao salvar. Tente novamente.'); }
-          const { error: e2 } = await supabaseClient.from('historico').delete().eq('id', histId);
-          if (e2) { console.error(e2); }
+          const { error } = await supabaseClient.from('historico').update({ visitas: parsed }).eq('id', histId);
+          if (error) { handleSupabaseError(error, 'salvar visita'); return; }
         }
-      } else {
-        const { error } = await supabaseClient.from('historico').update({ visitas: parsed }).eq('id', histId);
-        if (error) { console.error(error); showToast('Erro ao salvar. Tente novamente.'); }
+
+        await fetchAllData();
+        renderCalendar();
+        showToast('Visita atualizada com sucesso!');
+      } finally {
+        isProcessing = false;
+        btnSaveVisit.textContent = 'Salvar';
+        btnSaveVisit.disabled = false;
+        editVisitModal.classList.remove('active');
+        currentEditingVisit = null;
       }
-
-      await fetchAllData();
-      renderCalendar();
-      showToast('Visita atualizada com sucesso!');
-
-      btnSaveVisit.textContent = 'Salvar';
-      btnSaveVisit.disabled = false;
-      editVisitModal.classList.remove('active');
-      currentEditingVisit = null;
     });
 
     // Fechar modais ao clicar no backdrop (overlay)
@@ -802,26 +876,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function exportCSV() {
     let csvContent = "Nome,Internação,Hospital,Status,Primeira Avaliacao,Ultima Visita,Dias de Internacao\n";
-    patients.forEach(p => {
+    getFilteredPatients().forEach(p => {
       const dias = diasDeInternacao(p.dataPrimeiraAvaliacao, p.dataUltimaVisita);
-      let isInternado = true;
-      if (p.statusManual === STATUS.ALTA) {
-        isInternado = false;
-      } else if (diffEmDias(p.dataUltimaVisita, today) > 3) {
-        isInternado = false;
-      }
-      const statusStr = isInternado ? STATUS.INTERNADO : STATUS.ALTA;
+      const statusStr = p.isInternado ? STATUS.INTERNADO : STATUS.ALTA;
       const internacaoStr = p.internacao || 'Particular';
 
       const row = `"${p.pacienteNome}","${internacaoStr}","${p.hospital}","${statusStr}","${formatDateBR(p.dataPrimeiraAvaliacao)}","${formatDateBR(p.dataUltimaVisita)}","${dias}"`;
       csvContent += row + "\n";
     });
 
+    const hosp = filterHospital.value;
+    const stat = filterStatus ? filterStatus.value : 'Todos';
+    const filename = `censo_hospitalar_${hosp}_${stat}.csv`.replace(/ /g, '_').toLowerCase();
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", "censo_hospitalar.csv");
+    link.setAttribute("download", filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -989,9 +1061,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           html += `<div class="cal-patient">
                      <strong>${esc(record.pacienteNome)}${visitCountIndicator}</strong>
                      <span>${esc(record.hospital)}</span>
-                     <div class="cal-actions" style="margin-top: 5px; text-align: right;">
-                        <button class="btn-action" title="Editar Visita" data-action="edit-visit" data-patient-id="${record.patientId}" data-hist-id="${record.histId}">✏️</button>
-                        <button class="btn-action" title="Excluir Visita" data-action="delete-visit" data-patient-id="${record.patientId}" data-hist-id="${record.histId}">🗑️</button>
+                     <div class="cal-actions col-actions" style="margin-top: 5px; text-align: right;">
+                        <button class="btn-action" title="Editar Visita" data-action="edit-visit" data-patient-id="${escAttr(record.patientId)}" data-hist-id="${escAttr(record.histId)}">✏️</button>
+                        <button class="btn-action" title="Excluir Visita" data-action="delete-visit" data-patient-id="${escAttr(record.patientId)}" data-hist-id="${escAttr(record.histId)}">🗑️</button>
                      </div>
                    </div>`;
         });
@@ -1043,30 +1115,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (confirm(`Remover o registro de ${p.pacienteNome} do dia ${h.data}?`)) {
       const { error: errDel } = await supabaseClient.from('historico').delete().eq('id', numericHistId);
-      if (errDel) { console.error(errDel); showToast('Erro ao excluir visita.'); return; }
+      if (errDel) { handleSupabaseError(errDel, 'excluir visita'); return; }
 
       const arrayLimitado = p.historico.filter(hi => hi.id !== numericHistId);
 
       if (arrayLimitado.length === 0) {
         if (confirm(`O paciente ${p.pacienteNome} ficou sem histórico de visitas. Deseja excluí-lo do sistema também?`)) {
           const { error } = await supabaseClient.from('patients').delete().eq('id', patientId);
-          if (error) { console.error(error); showToast('Erro ao excluir paciente.'); }
+          if (error) { handleSupabaseError(error, 'excluir paciente'); }
         } else {
-          await supabaseClient.from('patients').update({
-            dataprimeiraavaliacao: null,
-            dataultimavisita: null
-          }).eq('id', patientId);
+          await recalcPatientDates(patientId);
         }
       } else {
-        const sortedDates = [...arrayLimitado.map(x => x.data)].sort();
-        const novaUltima = sortedDates[sortedDates.length - 1] || null;
-        const novaPrimeira = sortedDates[0] || novaUltima;
-
-        const { error } = await supabaseClient.from('patients').update({
-          dataprimeiraavaliacao: novaPrimeira,
-          dataultimavisita: novaUltima
-        }).eq('id', patientId);
-        if (error) { console.error(error); showToast('Erro ao atualizar datas do paciente.'); }
+        await recalcPatientDates(patientId);
       }
 
       await fetchAllData();
@@ -1081,16 +1142,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       const btn = e.target.closest('[data-action]');
       if (!btn) return;
 
-      const action = btn.dataset.action;
-      const patientId = btn.dataset.patientId;
-      const histId = btn.dataset.histId ? parseInt(btn.dataset.histId, 10) : null;
+      if (isProcessing) return;
+      isProcessing = true;
 
-      switch (action) {
-        case 'edit-patient': editPatientInfo(patientId); break;
-        case 'delete-patient': await deletePatient(patientId); break;
-        case 'add-visit': await addVisitFromList(patientId); break;
-        case 'edit-visit': editVisit(patientId, histId); break;
-        case 'delete-visit': await deleteVisit(patientId, histId); break;
+      try {
+        const action = btn.dataset.action;
+        const patientId = btn.dataset.patientId;
+        const histId = btn.dataset.histId ? parseInt(btn.dataset.histId, 10) : null;
+
+        switch (action) {
+          case 'edit-patient': editPatientInfo(patientId); break;
+          case 'delete-patient': await deletePatient(patientId); break;
+          case 'add-visit': await addVisitFromList(patientId); break;
+          case 'edit-visit': editVisit(patientId, histId); break;
+          case 'delete-visit': await deleteVisit(patientId, histId); break;
+        }
+      } finally {
+        isProcessing = false;
       }
     });
   }

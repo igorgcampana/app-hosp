@@ -45,9 +45,10 @@ O deploy é automático via **Vercel**. Qualquer `git push` para a branch `main`
 
 ## Funcionalidades implementadas
 - [x] Autenticação via Supabase.
-- [x] Registro diário de visitas com busca de pacientes ativos.
-- [x] Ficha completa de pacientes com filtros e ordenação.
-- [x] Visão Calendário com totais mensais por médico.
+- [x] Registro diário de visitas com busca de pacientes ativos (atalho para últimos 5 dias).
+- [x] Ficha completa de pacientes com filtros, ordenação e edição de 1ª avaliação.
+- [x] Visão Calendário com edição de médico e número de visitas via modal.
+- [x] Lógica de reinternação (nova internação = novo registro de paciente).
 - [x] Exportação de todos os dados em CSV (Censo e Calendário).
 - [x] Controle de permissões (Médico vs. Gestor).
 - [x] Identidade visual personalizada.
@@ -59,7 +60,9 @@ O deploy é automático via **Vercel**. Qualquer `git push` para a branch `main`
 ## Para a IA que vai assumir este projeto
 **Contexto:** Este projeto é crítico para a rotina do Dr. Igor Campana.
 **Padrões adotados:**
-- Identidade visual estrita: Primária `#20515F`.
+- **Reinternações:** Sempre crie um novo paciente no banco se o fluxo for de "Novo Paciente". Isso é vital para o faturamento.
+- **Edição no Calendário:** Utilize o `edit-visit-modal` em vez de prompts para manter a consistência visual.
+- **Identidade visual estrita:** Utilize as variáveis CSS definidas em `styles.css`. Primária `#20515F`.
 - Não remova a classe `.container` do CSS (limita a largura da tela).
 - Ao alterar o `script.js`, certifique-se de não apagar a linha `document.body.style.visibility = 'visible';` que é necessária para renderizar após a autenticação.
 - O controle de permissões para gestores (`role === 'manager'`) deve ser mantido em todas as novas features de escrita.

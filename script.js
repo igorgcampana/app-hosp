@@ -90,9 +90,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   const editHospital = document.getElementById('edit-hospital');
   const editInternacao = document.getElementById('edit-internacao');
   const editAlta = document.getElementById('edit-alta');
+  const editDataPrimeira = document.getElementById('edit-data-primeira');
   const btnSaveEdit = document.getElementById('btn-save-edit');
   const btnCancelEdit = document.getElementById('btn-cancel-edit');
   let currentEditingPatientId = null;
+
+  // DOM Elements - Edit Visit Modal
+  const editVisitModal = document.getElementById('edit-visit-modal');
+  const editVisitPatientLabel = document.getElementById('edit-visit-patient-label');
+  const editVisitMedico = document.getElementById('edit-visit-medico');
+  const editVisitVisitas = document.getElementById('edit-visit-visitas');
+  const btnSaveVisit = document.getElementById('btn-save-visit');
+  const btnCancelVisit = document.getElementById('btn-cancel-visit');
+  let currentEditingVisit = null; // { patientId, histId }
 
   // Set default date to today
   const todayDateObj = new Date();
@@ -323,9 +333,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (p.statusManual === 'Alta') return false;
       const diff = getDaysDifference(p.dataUltimaVisita, today);
       return diff <= 3;
-    }).sort((a, b) => a.pacienteNome.localeCompare(b.pacienteNome));
+    });
 
+    // Deduplicar no frontend pelo nome para não mostrar o mesmo paciente mais de uma vez
+    const uniqueMap = new Map();
     activePatients.forEach(p => {
+      const key = p.pacienteNome.trim().toLowerCase();
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, p);
+      } else {
+        const existing = uniqueMap.get(key);
+        // Se já existe, mantém o que teve a visita mais recente
+        if (new Date(p.dataUltimaVisita) > new Date(existing.dataUltimaVisita)) {
+          uniqueMap.set(key, p);
+        }
+      }
+    });
+
+    const dedupPatients = Array.from(uniqueMap.values()).sort((a, b) => a.pacienteNome.localeCompare(b.pacienteNome));
+
+    dedupPatients.forEach(p => {
       const option = document.createElement('option');
       option.value = p.id;
       option.textContent = `${p.pacienteNome} (${p.hospital} / ${p.internacao || 'Particular'} - 1ª aval: ${formatDateBR(p.dataPrimeiraAvaliacao)})`;
@@ -360,13 +387,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const selectedDateStr = inputDataVisita.value;
     if (!selectedDateStr) return;
 
-    const parts = selectedDateStr.split('-');
-    const d = new Date(parts[0], parts[1] - 1, parts[2]);
-    d.setDate(d.getDate() - 1);
-
-    const prevDayStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-
-    const prevDayPatients = patients.filter(p => p.dataUltimaVisita === prevDayStr && p.statusManual !== 'Alta');
+    // Buscar pacientes que: não tenham alta, a data da última visita seja estritamente anterior à dataSelecionada e que seja até 5 dias atrás.
+    const prevDayPatients = patients.filter(p => {
+      if (p.statusManual === 'Alta') return false;
+      if (p.dataUltimaVisita >= selectedDateStr) return false;
+      const diff = getDaysDifference(p.dataUltimaVisita, selectedDateStr);
+      return diff > 1 && diff <= 6; // diff > 1 significa que não é o mesmo dia; diff <= 6 significa pelo menos 5 dias da data selecionada
+    });
 
     if (prevDayPatients.length === 0) {
       emptyPrevDay.style.display = 'block';
@@ -529,12 +556,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     currentEditingPatientId = id;
     editNome.value = p.pacienteNome;
     editHospital.value = p.hospital;
-    if (p.internacao) {
-      editInternacao.value = p.internacao;
-    } else {
-      editInternacao.value = 'Particular';
-    }
+    editInternacao.value = p.internacao || 'Particular';
     editAlta.checked = p.statusManual === 'Alta';
+    editDataPrimeira.value = p.dataPrimeiraAvaliacao || '';
 
     editModal.classList.add('active');
   };
@@ -570,6 +594,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           hospital: newHospital,
           internacao: newInternacao,
           statusmanual: novoStatus,
+          dataprimeiraavaliacao: editDataPrimeira.value || p.dataPrimeiraAvaliacao,
           updated_at: new Date().toISOString()
         }).eq('id', p.id);
 
@@ -803,22 +828,68 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  window.editVisit = async function (patientId, histId) {
+  window.editVisit = function (patientId, histId) {
     const p = patients.find(pat => pat.id === patientId);
     if (!p || !p.historico) return;
     const h = p.historico.find(hi => hi.id === histId);
     if (!h) return;
 
-    const newVisits = prompt(`Editando visitas de ${p.pacienteNome} no dia ${h.data}.\nNovo número de visitas:`, h.visitas);
-    if (newVisits !== null && newVisits !== '') {
-      const parsed = parseInt(newVisits, 10);
-      if (!isNaN(parsed) && parsed > 0) {
-        await supabaseClient.from('historico').update({ visitas: parsed }).eq('id', histId);
-        await fetchAllData();
-        renderCalendar();
-      }
-    }
+    currentEditingVisit = { patientId, histId };
+    editVisitPatientLabel.textContent = `${p.pacienteNome} — ${h.data}`;
+    editVisitMedico.value = h.medico;
+    editVisitVisitas.value = h.visitas;
+
+    editVisitModal.classList.add('active');
   };
+
+  btnCancelVisit.addEventListener('click', () => {
+    editVisitModal.classList.remove('active');
+    currentEditingVisit = null;
+  });
+
+  btnSaveVisit.addEventListener('click', async () => {
+    if (!currentEditingVisit) return;
+    const { patientId, histId } = currentEditingVisit;
+    const parsed = parseInt(editVisitVisitas.value, 10);
+    if (isNaN(parsed) || parsed < 1) {
+      alert('Número de visitas inválido.');
+      return;
+    }
+
+    btnSaveVisit.textContent = 'Aguarde...';
+    btnSaveVisit.disabled = true;
+
+    const newMedico = editVisitMedico.value;
+
+    // Se o médico mudou, precisamos deletar o histórico antigo e inserir um novo
+    const p = patients.find(pat => pat.id === patientId);
+    const h = p.historico.find(hi => hi.id === histId);
+
+    if (h.medico !== newMedico) {
+      // Verificar se já existe entrada para o novo médico nessa mesma data
+      const existingForNewDoc = p.historico.find(hi => hi.data === h.data && hi.medico === newMedico && hi.id !== histId);
+      if (existingForNewDoc) {
+        // Mesclar: somar as visitas no registro existente e deletar o antigo
+        await supabaseClient.from('historico').update({ visitas: parseInt(existingForNewDoc.visitas, 10) + parsed }).eq('id', existingForNewDoc.id);
+        await supabaseClient.from('historico').delete().eq('id', histId);
+      } else {
+        // Criar novo registro com o médico correto e deletar o antigo
+        await supabaseClient.from('historico').insert({ patient_id: patientId, data: h.data, medico: newMedico, visitas: parsed });
+        await supabaseClient.from('historico').delete().eq('id', histId);
+      }
+    } else {
+      // Apenas atualizar o número de visitas
+      await supabaseClient.from('historico').update({ visitas: parsed }).eq('id', histId);
+    }
+
+    await fetchAllData();
+    renderCalendar();
+
+    btnSaveVisit.textContent = 'Salvar';
+    btnSaveVisit.disabled = false;
+    editVisitModal.classList.remove('active');
+    currentEditingVisit = null;
+  });
 
   window.deleteVisit = async function (patientId, histId) {
     const p = patients.find(pat => pat.id === patientId);

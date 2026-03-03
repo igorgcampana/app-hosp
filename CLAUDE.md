@@ -45,6 +45,13 @@ OBRIGATÓRIO seguir estritamente:
 3. **Visibilidade:** O `body` começa com `visibility: hidden` e só é exibido após a verificação de sessão no `script.js`.
 4. **Tabela de Atalho:** No registro diário, exibe pacientes visitados nos últimos 5 dias (em relação à data selecionada) que não estejam em alta.
 
+## UX/UI Mobile (Bottom Tab Bar)
+- **Área de Toque:** Mínimo de 44x44px. A bottom nav usa `64px` de altura fixa.
+- **Estrutura:** Ícone SVG (`tab-icon`) acima de um label texto (`tab-label`).
+- **Estados:** Ativo usa `--color-secondary` com opacidade total; Inativo usa opacidade de `0.65`.
+- **Cabeçalho:** O botão "Sair" deve ser discreto (apenas texto/borda fina) para não deslocar o título `AppHosp`.
+
 ## Padrões de Código
 - **Vanilla JS:** Evite frameworks. Mantenha a lógica centralizada no `script.js`.
-- **Deduplicação:** Pacientes são deduplicados pelo nome apenas na exibição do `select` para evitar poluição visual, mas mantidos como registros distintos no banco.
+- **Deduplicação:** Pacientes são deduplicados pelo nome apenas na exibição do `select` para evitar poluição visual.
+- **Responsividade:** Use `@media (max-width: 768px)` para transformações em cards mobile.

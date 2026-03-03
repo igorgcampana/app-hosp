@@ -55,7 +55,8 @@ O deploy é contínuo e automático via **Vercel**.
 - [x] Ficha completa de pacientes com pesquisa dinâmica dos Internados x Alta.
 - [x] Lógica de reinternação (nova cobrança = novo paciente único e separado).
 - [x] Calendário detalhado dia a dia e exportação CSV granular por Médico.
-- [x] UX unificado com Design System, Toasts animados (substituindo `alert()`), modais centralizados.
+- [x] UX unificado com Design System, Toasts animados e **Bottom Tab Bar mobile** (ícones + labels).
+- [x] Cabeçalho mobile otimizado com botão Sair discreto e logo centralizado.
 - [x] Bloqueador para evitar duplo clique em interações assíncronas (race condition).
 - [x] Segurança em Banco de Dados (Policies RLS).
 

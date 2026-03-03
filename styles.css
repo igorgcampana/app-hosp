@@ -667,20 +667,17 @@ tbody tr:hover {
     /* Retira espaços vazios */
   }
 
-  /* Botão Sair bastante reduzido, para caber com elegância */
+  /* Botão Sair bastante reduzido para o mínimo absoluto */
   #btn-logout {
-    padding: 0.15rem 0.45rem;
-    /* Menor padding */
-    font-size: 0.65rem;
-    border: 1px solid rgba(217, 83, 79, 0.3) !important;
-    border-radius: var(--radius-md);
-    color: rgba(217, 83, 79, 0.85) !important;
+    padding: 2px 6px;
+    font-size: 0.6rem;
+    border: 1px solid rgba(217, 83, 79, 0.25) !important;
+    border-radius: 4px;
+    color: rgba(217, 83, 79, 0.8) !important;
     background: transparent;
-    letter-spacing: 0.2px;
-    opacity: 0.85;
-    min-width: 32px;
-    /* Área de toque menor / proporcional no topo */
-    min-height: 20px;
+    letter-spacing: 0.1px;
+    min-width: auto;
+    min-height: auto;
     line-height: 1;
   }
 

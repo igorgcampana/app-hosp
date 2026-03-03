@@ -855,7 +855,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             await recalcPatientDates(p.id);
             await fetchAllData();
             renderPatientsTable();
-            setupPatientSelect();
             showToast('Paciente atualizado!');
           } finally {
             isProcessing = false;
@@ -1213,19 +1212,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       const btn = e.target.closest('[data-action]');
       if (!btn) return;
 
+      const action = btn.dataset.action;
+      const patientId = btn.dataset.patientId;
+      const histId = btn.dataset.histId ? parseInt(btn.dataset.histId, 10) : null;
+
+      // Ações síncronas (abrir modal) — não precisam de guard
+      if (action === 'edit-patient') { editPatientInfo(patientId); return; }
+      if (action === 'edit-visit') { editVisit(patientId, histId); return; }
+
+      // Ações assíncronas — proteger contra duplo clique
       if (isProcessing) return;
       isProcessing = true;
 
       try {
-        const action = btn.dataset.action;
-        const patientId = btn.dataset.patientId;
-        const histId = btn.dataset.histId ? parseInt(btn.dataset.histId, 10) : null;
-
         switch (action) {
-          case 'edit-patient': editPatientInfo(patientId); break;
           case 'delete-patient': await deletePatient(patientId); break;
           case 'add-visit': await addVisitFromList(patientId); break;
-          case 'edit-visit': editVisit(patientId, histId); break;
           case 'delete-visit': await deleteVisit(patientId, histId); break;
         }
       } finally {

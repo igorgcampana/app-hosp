@@ -615,13 +615,20 @@ tbody tr:hover {
     flex-direction: row;
     padding: 0.5rem 1rem;
     gap: 0;
-    justify-content: space-between;
+    justify-content: flex-end;
+    /* Empurra os itens flex normais (user-display) para a direita */
     align-items: center;
+    position: relative;
+    /* Permite centralizar o brand em absolute */
+    min-height: 54px;
   }
 
   .navbar-brand {
     margin-bottom: 0;
-    flex: 1;
+    /* Centraliza absolutamente na tela */
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
   }
 
   .navbar-brand h1 {
@@ -632,13 +639,20 @@ tbody tr:hover {
   #user-display {
     display: flex !important;
     align-items: center;
-    gap: 0;
+    gap: 8px;
+    /* Espaço entre email e botão Sair */
     flex-shrink: 0;
   }
 
-  /* E-mail oculto no mobile */
+  /* Exibe o E-mail truncado no mobile */
   #user-email {
-    display: none;
+    display: block !important;
+    font-size: 0.65rem;
+    max-width: 90px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: right;
   }
 
   /* Botão Sair discreto: apenas texto pequeno, sem borda pesada */
@@ -827,10 +841,15 @@ tbody tr:hover {
     margin-top: 0.5rem;
   }
 
-  /* Gestor: penúltima td assume visual de encerramento */
+  /* Quando o gestor não vê a coluna Ações, a penúltima td assume o visual de encerramento */
   body.role-manager #patients-table tbody td:nth-last-child(2) {
     padding-bottom: 0.75rem;
     border-bottom: none;
+  }
+
+  /* Conserta o traço fantasma no meio do calendário gerado pelo gradiente de overlay */
+  .calendar-container::after {
+    display: none;
   }
 }
 

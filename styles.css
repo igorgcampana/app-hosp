@@ -96,9 +96,8 @@ h6 {
   font-weight: 600;
 }
 
-/* Ícones e labels da bottom tab: ocultos no desktop */
-.tab-icon,
-.tab-label {
+/* Ícones da bottom tab ocultos no desktop, mas mantemos as labels visíveis */
+.tab-icon {
   display: none;
 }
 

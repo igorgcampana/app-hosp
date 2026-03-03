@@ -103,20 +103,27 @@ h6 {
 }
 
 /* Navbar User Info */
+#user-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 #user-email {
+  font-family: var(--font-body);
   color: var(--color-secondary);
   font-weight: 300;
+  font-size: 0.8rem;
   max-width: 150px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* No mobile, o #user-display fica alinhado à direita no header sem quebrar linha */
-@media (max-width: 768px) {
-  #user-display {
-    flex-shrink: 0;
-  }
+#btn-logout {
+  color: #d9534f;
+  border: 1px solid #d9534f;
+  background: transparent;
 }
 
 /* Layout */
@@ -635,38 +642,46 @@ tbody tr:hover {
     font-size: 1.15rem;
   }
 
-  /* Sempre visível, alinhado à direita, sem quebra de linha */
+  /* Empilhar o botão e o e-mail no mobile */
   #user-display {
     display: flex !important;
-    align-items: center;
-    gap: 8px;
-    /* Espaço entre email e botão Sair */
+    flex-direction: column;
+    align-items: flex-end;
+    /* alinha ambos à direita */
+    gap: 2px;
+    /* Espaço bem pequeno entre o botão e o e-mail */
     flex-shrink: 0;
   }
 
-  /* Exibe o E-mail truncado no mobile */
+  /* Exibe o E-mail de quem logou, logo abaixo do botão */
   #user-email {
     display: block !important;
-    font-size: 0.65rem;
+    font-size: 0.60rem;
+    /* Ainda menor, como legenda */
     max-width: 90px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     text-align: right;
+    line-height: 1;
+    /* Retira espaços vazios */
   }
 
-  /* Botão Sair discreto: apenas texto pequeno, sem borda pesada */
+  /* Botão Sair bastante reduzido, para caber com elegância */
   #btn-logout {
-    padding: 0.35rem 0.65rem;
-    font-size: 0.7rem;
-    border: 1px solid rgba(217, 83, 79, 0.45) !important;
+    padding: 0.15rem 0.45rem;
+    /* Menor padding */
+    font-size: 0.65rem;
+    border: 1px solid rgba(217, 83, 79, 0.3) !important;
     border-radius: var(--radius-md);
     color: rgba(217, 83, 79, 0.85) !important;
     background: transparent;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.2px;
     opacity: 0.85;
-    min-width: 44px;
-    min-height: 32px;
+    min-width: 32px;
+    /* Área de toque menor / proporcional no topo */
+    min-height: 20px;
+    line-height: 1;
   }
 
   #btn-logout:hover {

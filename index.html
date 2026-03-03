@@ -55,11 +55,48 @@
       <h1>AppHosp</h1>
     </div>
     <ul class="nav-links">
-      <li><button class="nav-btn active" data-target="screen-registro">Registro Diário</button></li>
-      <li><button class="nav-btn" data-target="screen-ficha">Ficha de Pacientes</button></li>
-      <li><button class="nav-btn" data-target="screen-calendario">Visão Calendário</button></li>
+      <!-- Tab: Registro Diário -->
+      <li>
+        <button class="nav-btn active" data-target="screen-registro">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+            <rect x="9" y="3" width="6" height="4" rx="1" />
+            <line x1="9" y1="12" x2="15" y2="12" />
+            <line x1="9" y1="16" x2="13" y2="16" />
+          </svg>
+          <span class="tab-label">Registro</span>
+        </button>
+      </li>
+      <!-- Tab: Ficha de Pacientes -->
+      <li>
+        <button class="nav-btn" data-target="screen-ficha">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+          <span class="tab-label">Pacientes</span>
+        </button>
+      </li>
+      <!-- Tab: Visão Calendário -->
+      <li>
+        <button class="nav-btn" data-target="screen-calendario">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+          <span class="tab-label">Calendário</span>
+        </button>
+      </li>
     </ul>
-    <span id="user-display" style="display: flex; align-items: center; gap: 10px;">
+    <!-- Área do usuário: e-mail + botão Sair discreto -->
+    <span id="user-display" style="display: flex; align-items: center; gap: 8px;">
       <small id="user-email" style="font-family: var(--font-body); opacity: 0.8; font-size: 0.8rem;"></small>
       <button class="nav-btn" id="btn-logout"
         style="color:#d9534f; border: 1px solid #d9534f; background:transparent">Sair</button>

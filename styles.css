@@ -96,6 +96,12 @@ h6 {
   font-weight: 600;
 }
 
+/* Ícones e labels da bottom tab: ocultos no desktop */
+.tab-icon,
+.tab-label {
+  display: none;
+}
+
 /* Navbar User Info */
 #user-email {
   color: var(--color-secondary);
@@ -106,13 +112,10 @@ h6 {
   white-space: nowrap;
 }
 
+/* No mobile, o #user-display fica alinhado à direita no header sem quebrar linha */
 @media (max-width: 768px) {
   #user-display {
-    width: 100%;
-    justify-content: center;
-    margin-top: 10px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    padding-top: 10px;
+    flex-shrink: 0;
   }
 }
 
@@ -602,11 +605,15 @@ tbody tr:hover {
   }
 }
 
-/* Responsive */
+/* ========================================
+   RESPONSIVE — Mobile First
+======================================== */
 @media (max-width: 768px) {
+
+  /* --- Header / Navbar --- */
   .navbar {
     flex-direction: row;
-    padding: 0.4rem 0.8rem;
+    padding: 0.5rem 1rem;
     gap: 0;
     justify-content: space-between;
     align-items: center;
@@ -614,12 +621,46 @@ tbody tr:hover {
 
   .navbar-brand {
     margin-bottom: 0;
+    flex: 1;
   }
 
   .navbar-brand h1 {
-    font-size: 1.1rem;
+    font-size: 1.15rem;
   }
 
+  /* Sempre visível, alinhado à direita, sem quebra de linha */
+  #user-display {
+    display: flex !important;
+    align-items: center;
+    gap: 0;
+    flex-shrink: 0;
+  }
+
+  /* E-mail oculto no mobile */
+  #user-email {
+    display: none;
+  }
+
+  /* Botão Sair discreto: apenas texto pequeno, sem borda pesada */
+  #btn-logout {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.7rem;
+    border: 1px solid rgba(217, 83, 79, 0.45) !important;
+    border-radius: var(--radius-md);
+    color: rgba(217, 83, 79, 0.85) !important;
+    background: transparent;
+    letter-spacing: 0.3px;
+    opacity: 0.85;
+    min-width: 44px;
+    min-height: 32px;
+  }
+
+  #btn-logout:hover {
+    opacity: 1;
+    background: rgba(217, 83, 79, 0.08) !important;
+  }
+
+  /* --- Bottom Navigation Bar --- */
   .nav-links {
     position: fixed;
     bottom: 0;
@@ -628,9 +669,11 @@ tbody tr:hover {
     background-color: var(--color-primary);
     display: flex;
     justify-content: space-around;
-    align-items: center;
-    padding: 0.5rem 0;
-    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.15);
+    align-items: stretch;
+    height: 64px;
+    /* altura fixa generosa */
+    padding: 0;
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.2);
     z-index: 100;
     gap: 0;
     flex-wrap: nowrap;
@@ -638,32 +681,74 @@ tbody tr:hover {
 
   .nav-links li {
     flex: 1;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
+  /* Botão da tab bar: ícone acima + label abaixo */
   .nav-btn {
-    padding: 0.5rem 0.3rem;
-    font-size: 0.72rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 0;
     width: 100%;
+    height: 64px;
+    /* área de toque completa */
+    font-size: 0.65rem;
+    letter-spacing: 0.2px;
+    color: rgba(221, 208, 198, 0.65);
+    /* inativo: cor-secundária translúcida */
+    border-radius: 0;
+    background: transparent;
+    transition: color 0.2s, background 0.2s;
+  }
+
+  .nav-btn .tab-icon {
     display: block;
+    /* sobrescreve o display:none global */
+    width: 22px;
+    height: 22px;
+    opacity: 0.65;
+    transition: opacity 0.2s, transform 0.2s;
+    flex-shrink: 0;
   }
 
-  #user-display {
-    display: flex !important;
+  .nav-btn .tab-label {
+    display: block;
+    line-height: 1;
   }
 
-  #user-email {
-    display: none;
+  /* Estado ATIVO da tab */
+  .nav-btn.active {
+    color: var(--color-secondary);
+    /* bege claro = destaque */
+    background: rgba(255, 255, 255, 0.08);
+    font-weight: 600;
   }
 
-  #btn-logout {
-    padding: 0.3rem 0.6rem;
-    font-size: 0.75rem;
+  .nav-btn.active .tab-icon {
+    opacity: 1;
+    transform: translateY(-1px);
+    /* micro-lift sutil */
   }
 
+  .nav-btn:hover:not(.active) {
+    color: rgba(221, 208, 198, 0.9);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .nav-btn:hover:not(.active) .tab-icon {
+    opacity: 0.85;
+  }
+
+  /* --- Layout geral --- */
   .container {
     padding: 1rem;
-    padding-bottom: 5rem;
+    padding-bottom: 5.5rem;
+    /* espaço para a tab bar de 64px */
   }
 
   .title {
@@ -701,7 +786,7 @@ tbody tr:hover {
     width: 100%;
   }
 
-  /* Ficha de Pacientes: Card Layout para mobile */
+  /* --- Ficha de Pacientes: Card Layout --- */
   #patients-table thead {
     display: none;
   }
@@ -742,7 +827,7 @@ tbody tr:hover {
     margin-top: 0.5rem;
   }
 
-  /* Quando o gestor não vê a coluna Ações, a penúltima td assume o visual de encerramento */
+  /* Gestor: penúltima td assume visual de encerramento */
   body.role-manager #patients-table tbody td:nth-last-child(2) {
     padding-bottom: 0.75rem;
     border-bottom: none;

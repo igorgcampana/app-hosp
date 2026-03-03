@@ -1162,13 +1162,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function editVisit(patientId, histId) {
-    const numericHistId = parseInt(histId, 10);
     const p = patients.find(pat => pat.id === patientId);
     if (!p || !p.historico) return;
-    const h = p.historico.find(hi => hi.id === numericHistId);
+    const h = p.historico.find(hi => hi.id === histId);
     if (!h) return;
 
-    currentEditingVisit = { patientId, histId: numericHistId };
+    currentEditingVisit = { patientId, histId };
     editVisitPatientLabel.textContent = `${p.pacienteNome} — ${h.data}`;
     editVisitMedico.value = h.medico;
     editVisitVisitas.value = h.visitas;
@@ -1177,17 +1176,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function deleteVisit(patientId, histId) {
-    const numericHistId = parseInt(histId, 10);
     const p = patients.find(pat => pat.id === patientId);
     if (!p || !p.historico) return;
-    const h = p.historico.find(hi => hi.id === numericHistId);
+    const h = p.historico.find(hi => hi.id === histId);
     if (!h) return;
 
     if (await showConfirm(`Remover o registro de ${esc(p.pacienteNome)} do dia ${formatDateBR(h.data)}?`, 'Excluir Visita')) {
-      const { error: errDel } = await supabaseClient.from('historico').delete().eq('id', numericHistId);
+      const { error: errDel } = await supabaseClient.from('historico').delete().eq('id', histId);
       if (errDel) { handleSupabaseError(errDel, 'excluir visita'); return; }
 
-      const arrayLimitado = p.historico.filter(hi => hi.id !== numericHistId);
+      const arrayLimitado = p.historico.filter(hi => hi.id !== histId);
 
       if (arrayLimitado.length === 0) {
         if (await showConfirm(`O paciente ${esc(p.pacienteNome)} ficou sem histórico de visitas. Deseja excluí-lo do sistema também?`, 'Paciente sem Visitas')) {
@@ -1214,7 +1212,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const action = btn.dataset.action;
       const patientId = btn.dataset.patientId;
-      const histId = btn.dataset.histId ? parseInt(btn.dataset.histId, 10) : null;
+      const histId = btn.dataset.histId || null;
 
       // Ações síncronas (abrir modal) — não precisam de guard
       if (action === 'edit-patient') { editPatientInfo(patientId); return; }

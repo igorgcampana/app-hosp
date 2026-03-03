@@ -63,9 +63,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // DOM Elements - Screen 1 (Registro)
   const formRegistro = document.getElementById('registro-form');
-  const inputNome = document.getElementById('pacienteNome');
-  const pacienteSelect = document.getElementById('pacienteSelect');
-  const novoPacienteGroup = document.getElementById('novoPacienteGroup');
+  const pacienteInput = document.getElementById('pacienteInput');
+  const suggestionsBox = document.getElementById('suggestions-box');
+  const selectedPatientId = document.getElementById('selectedPatientId');
   const inputHospital = document.getElementById('hospital');
   const inputInternacao = document.getElementById('internacao');
   const inputDataVisita = document.getElementById('dataVisita');
@@ -79,6 +79,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // DOM Elements - Screen 2 (Ficha)
   const patientsTableBody = document.querySelector('#patients-table tbody');
   const emptyPatients = document.getElementById('empty-patients');
+  const filterSearch = document.getElementById('filter-search');
   const filterHospital = document.getElementById('filter-hospital');
   const filterStatus = document.getElementById('filter-status');
   const btnExport = document.getElementById('btn-export');
@@ -140,6 +141,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     toast.textContent = message;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
+  }
+
+  function showConfirm(message, title = 'Confirmação') {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('confirm-modal');
+      const msgEl = document.getElementById('confirm-message');
+      const titleEl = document.getElementById('confirm-title');
+      const btnYes = document.getElementById('confirm-yes');
+      const btnNo = document.getElementById('confirm-no');
+
+      titleEl.textContent = title;
+      msgEl.textContent = message;
+      modal.classList.add('active');
+
+      function cleanup() {
+        modal.classList.remove('active');
+        btnYes.removeEventListener('click', onYes);
+        btnNo.removeEventListener('click', onNo);
+        modal.removeEventListener('click', onBackdrop);
+      }
+
+      function onYes() { cleanup(); resolve(true); }
+      function onNo() { cleanup(); resolve(false); }
+      function onBackdrop(e) { if (e.target === modal) { cleanup(); resolve(false); } }
+
+      btnYes.addEventListener('click', onYes);
+      btnNo.addEventListener('click', onNo);
+      modal.addEventListener('click', onBackdrop);
+    });
   }
 
   function handleSupabaseError(error, context = '') {
@@ -307,18 +337,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     selectDoctor.addEventListener('change', () => {
       localStorage.setItem('apphosp_doctor', selectDoctor.value);
+      renderPrevDayTable();
     });
-
-    // Listener do pacienteSelect: registrado UMA ÚNICA VEZ aqui
-    pacienteSelect.addEventListener('change', togglePatientFields);
 
     inputDataVisita.addEventListener('change', () => {
       renderPrevDayTable();
-      setupPatientSelect();
     });
 
     setupNavigation();
-    setupPatientSelect();
+    setupAutocomplete();
     setupForm();
     setupFichaFilters();
     setupSorting();
@@ -446,9 +473,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       isProcessing = true;
 
       try {
-        const isNovo = pacienteSelect.value === 'novo';
-        const nome = isNovo ? inputNome.value.trim() : '';
-        const selectedId = pacienteSelect.value;
+        const selectedId = selectedPatientId.value;
+        const isNovo = !selectedId;
+        const nome = pacienteInput.value.trim();
+
+        if (isNovo && !nome) {
+          showToast('Digite o nome do paciente.');
+          return;
+        }
+
         const hospital = inputHospital.value;
         const internacao = inputInternacao.value;
         const ehAlta = inputMarcarAlta.checked;
@@ -459,7 +492,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (ehAlta) {
           const nomeDisplay = isNovo ? nome : patients.find(p => p.id === selectedId)?.pacienteNome || 'paciente';
-          if (!confirm(`Confirma a ALTA de ${nomeDisplay}?`)) return;
+          if (!(await showConfirm(`Confirma a ALTA de ${nomeDisplay}?`, 'Alta Hospitalar'))) { return; }
         }
 
         btnSubmitRegistro.disabled = true;
@@ -475,13 +508,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (result && result.success) {
           await fetchAllData();
 
-          inputNome.value = '';
-          pacienteSelect.value = 'novo';
+          pacienteInput.value = '';
+          selectedPatientId.value = '';
           inputNumeroVisitas.value = '1';
           inputMarcarAlta.checked = false;
 
+          const altaSection = document.getElementById('alta-section');
+          if (altaSection) altaSection.removeAttribute('open');
+
           showToast('Visita registrada com sucesso!');
-          setupPatientSelect();
           renderPrevDayTable();
           renderPatientsTable();
           renderCalendar();
@@ -494,61 +529,91 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // togglePatientFields: extraída do setupPatientSelect para evitar memory leak de listeners acumulados
-  function togglePatientFields() {
-    if (pacienteSelect.value === 'novo') {
-      novoPacienteGroup.style.display = 'flex';
-      inputNome.setAttribute('required', 'true');
-    } else {
-      novoPacienteGroup.style.display = 'none';
-      inputNome.removeAttribute('required');
-      const selectedId = pacienteSelect.value;
-      const p = patients.find(pat => pat.id === selectedId);
-      if (p) {
-        inputHospital.value = p.hospital;
-        if (p.internacao) inputInternacao.value = p.internacao;
-      }
-    }
-  }
+  function setupAutocomplete() {
+    let debounceTimer = null;
 
-  function setupPatientSelect() {
-    pacienteSelect.innerHTML = '<option value="novo">+ Novo Paciente</option>';
+    pacienteInput.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      selectedPatientId.value = ''; // Resetar seleção ao digitar
 
-    const dataRef = inputDataVisita.value || today;
+      debounceTimer = setTimeout(() => {
+        const query = pacienteInput.value.trim().toLowerCase();
 
-    const activePatients = patients.filter(p => isPatientActive(p, dataRef));
-
-    // Deduplicar no frontend pelo nome
-    const uniqueMap = new Map();
-    activePatients.forEach(p => {
-      const key = p.pacienteNome.trim().toLowerCase();
-      if (!uniqueMap.has(key)) {
-        uniqueMap.set(key, p);
-      } else {
-        const existing = uniqueMap.get(key);
-        if (new Date(p.dataUltimaVisita) > new Date(existing.dataUltimaVisita)) {
-          uniqueMap.set(key, p);
+        if (query.length < 2) {
+          suggestionsBox.style.display = 'none';
+          suggestionsBox.innerHTML = '';
+          return;
         }
+
+        const dataRef = inputDataVisita.value || today;
+
+        // Filtrar pacientes ativos que batem com a busca
+        const matches = patients.filter(p => {
+          if (!isPatientActive(p, dataRef)) return false;
+          return p.pacienteNome.toLowerCase().includes(query);
+        });
+
+        // Deduplicar pelo nome (manter o mais recente)
+        const uniqueMap = new Map();
+        matches.forEach(p => {
+          const key = p.pacienteNome.trim().toLowerCase();
+          if (!uniqueMap.has(key) || new Date(p.dataUltimaVisita) > new Date(uniqueMap.get(key).dataUltimaVisita)) {
+            uniqueMap.set(key, p);
+          }
+        });
+
+        const dedupMatches = Array.from(uniqueMap.values()).sort((a, b) => a.pacienteNome.localeCompare(b.pacienteNome));
+
+        if (dedupMatches.length === 0) {
+          suggestionsBox.style.display = 'none';
+          suggestionsBox.innerHTML = '';
+          return;
+        }
+
+        suggestionsBox.innerHTML = '';
+        dedupMatches.forEach(p => {
+          const item = document.createElement('div');
+          item.className = 'suggestion-item';
+          item.innerHTML = `${esc(p.pacienteNome)} <span class="suggestion-meta">${esc(p.hospital)} · ${esc(p.internacao || 'Particular')}</span>`;
+          item.addEventListener('click', () => {
+            pacienteInput.value = p.pacienteNome;
+            selectedPatientId.value = p.id;
+            inputHospital.value = p.hospital;
+            if (p.internacao) inputInternacao.value = p.internacao;
+            suggestionsBox.style.display = 'none';
+            suggestionsBox.innerHTML = '';
+          });
+          suggestionsBox.appendChild(item);
+        });
+
+        suggestionsBox.style.display = 'block';
+      }, 250); // Debounce 250ms
+    });
+
+    // Fechar sugestões ao clicar fora
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.autocomplete-container')) {
+        suggestionsBox.style.display = 'none';
       }
     });
 
-    const dedupPatients = Array.from(uniqueMap.values()).sort((a, b) => a.pacienteNome.localeCompare(b.pacienteNome));
-
-    dedupPatients.forEach(p => {
-      const option = document.createElement('option');
-      option.value = p.id;
-      option.textContent = `${p.pacienteNome} (${p.hospital} / ${p.internacao || 'Particular'} - 1ª aval: ${formatDateBR(p.dataPrimeiraAvaliacao)})`;
-      pacienteSelect.appendChild(option);
+    // Fechar sugestões com Escape
+    pacienteInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        suggestionsBox.style.display = 'none';
+      }
     });
-
-    // Chamada direta — não registra listener (já foi registrado uma vez no init())
-    togglePatientFields();
   }
 
   function renderPrevDayTable() {
     prevDayTableBody.innerHTML = '';
     const selectedDateStr = inputDataVisita.value;
     if (!selectedDateStr) return;
+
+    const shortcutContext = document.getElementById('shortcut-context');
+    if (shortcutContext) {
+      shortcutContext.textContent = `Visita será registrada para ${selectDoctor.value} em ${formatDateBR(inputDataVisita.value)}`;
+    }
 
     // Mostrar pacientes com última visita entre 1 e limite dias atrás
     const prevDayPatients = patients.filter(p => {
@@ -608,7 +673,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderPrevDayTable();
         renderPatientsTable();
         renderCalendar();
-        setupPatientSelect();
         showToast('Visita adicionada!');
       }
     } finally {
@@ -618,6 +682,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // SCREEN 2: FICHA DE PACIENTES
   function setupFichaFilters() {
+    filterSearch.addEventListener('input', renderPatientsTable);
     filterHospital.addEventListener('change', renderPatientsTable);
     if (filterStatus) filterStatus.addEventListener('change', renderPatientsTable);
     btnExport.addEventListener('click', exportCSV);
@@ -626,6 +691,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function getFilteredPatients() {
     const hospFilter = filterHospital.value;
     const statusFilter = filterStatus ? filterStatus.value : 'Todos';
+    const searchQuery = filterSearch.value.trim().toLowerCase();
 
     return patients.map(p => {
       const isInternado = isPatientActive(p, today);
@@ -635,7 +701,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       const matchStatus = statusFilter === 'Todos' ||
         (statusFilter === STATUS.INTERNADO && p.isInternado) ||
         (statusFilter === STATUS.ALTA && !p.isInternado);
-      return matchHosp && matchStatus;
+      const matchSearch = !searchQuery || p.pacienteNome.toLowerCase().includes(searchQuery);
+      return matchHosp && matchStatus && matchSearch;
     });
   }
 
@@ -732,12 +799,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function deletePatient(id) {
     const p = patients.find(pat => pat.id === id);
     if (!p) return;
-    if (confirm(`Tem certeza que deseja EXCLUIR o paciente ${p.pacienteNome} de TODO o sistema? Esta ação apaga os históricos remotamente.`)) {
+    if (await showConfirm(`Tem certeza que deseja EXCLUIR o paciente ${esc(p.pacienteNome)} de TODO o sistema? Esta ação apaga os históricos remotamente.`, 'Excluir Paciente')) {
       const { error } = await supabaseClient.from('patients').delete().eq('id', id);
       if (error) { handleSupabaseError(error, 'excluir paciente'); return; }
       await fetchAllData();
       renderPatientsTable();
-      setupPatientSelect();
       renderCalendar();
       showToast('Paciente excluído com sucesso.');
     }
@@ -1030,7 +1096,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sortedDates = Object.keys(visitsByDate).sort();
 
     if (sortedDates.length === 0) {
-      calendarGrid.innerHTML = '<p class="empty-state">Nenhum evento no mês selecionado.</p>';
+      calendarGrid.innerHTML = '<p class="empty-state">Nenhuma visita encontrada neste mês. Selecione outro mês ou registre visitas na tela Registro Diário.</p>';
       emptySummary.style.display = 'block';
       summaryTableBody.parentElement.style.display = 'none';
       return;
@@ -1039,6 +1105,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     sortedDates.forEach(dateStr => {
       const colDiv = document.createElement('div');
       colDiv.className = 'cal-column';
+
+      if (dateStr === today) {
+        colDiv.classList.add('cal-column-today');
+      }
 
       const parsed = parseDate(dateStr);
       const ddmm = String(parsed.getDate()).padStart(2, '0') + '/' + String(parsed.getMonth() + 1).padStart(2, '0');
@@ -1114,14 +1184,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const h = p.historico.find(hi => hi.id === numericHistId);
     if (!h) return;
 
-    if (confirm(`Remover o registro de ${p.pacienteNome} do dia ${h.data}?`)) {
+    if (await showConfirm(`Remover o registro de ${esc(p.pacienteNome)} do dia ${formatDateBR(h.data)}?`, 'Excluir Visita')) {
       const { error: errDel } = await supabaseClient.from('historico').delete().eq('id', numericHistId);
       if (errDel) { handleSupabaseError(errDel, 'excluir visita'); return; }
 
       const arrayLimitado = p.historico.filter(hi => hi.id !== numericHistId);
 
       if (arrayLimitado.length === 0) {
-        if (confirm(`O paciente ${p.pacienteNome} ficou sem histórico de visitas. Deseja excluí-lo do sistema também?`)) {
+        if (await showConfirm(`O paciente ${esc(p.pacienteNome)} ficou sem histórico de visitas. Deseja excluí-lo do sistema também?`, 'Paciente sem Visitas')) {
           const { error } = await supabaseClient.from('patients').delete().eq('id', patientId);
           if (error) { handleSupabaseError(error, 'excluir paciente'); }
         } else {

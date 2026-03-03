@@ -58,14 +58,12 @@
       <li><button class="nav-btn active" data-target="screen-registro">Registro Diário</button></li>
       <li><button class="nav-btn" data-target="screen-ficha">Ficha de Pacientes</button></li>
       <li><button class="nav-btn" data-target="screen-calendario">Visão Calendário</button></li>
-      <li>
-        <span id="user-display" style="display: flex; align-items: center; gap: 10px;">
-          <small id="user-email" style="font-family: var(--font-body); opacity: 0.8; font-size: 0.8rem;"></small>
-          <button class="nav-btn" id="btn-logout"
-            style="color:#d9534f; border: 1px solid #d9534f; background:transparent">Sair</button>
-        </span>
-      </li>
     </ul>
+    <span id="user-display" style="display: flex; align-items: center; gap: 10px;">
+      <small id="user-email" style="font-family: var(--font-body); opacity: 0.8; font-size: 0.8rem;"></small>
+      <button class="nav-btn" id="btn-logout"
+        style="color:#d9534f; border: 1px solid #d9534f; background:transparent">Sair</button>
+    </span>
   </nav>
 
   <main class="container">
@@ -82,15 +80,12 @@
       <div class="card form-card">
         <h3>Novo Registro</h3>
         <form id="registro-form">
-          <div class="form-group">
-            <label for="pacienteSelect">Selecionar Paciente</label>
-            <select id="pacienteSelect" name="pacienteSelect">
-              <option value="novo">+ Novo Paciente</option>
-            </select>
-          </div>
-          <div class="form-group" id="novoPacienteGroup">
-            <label for="pacienteNome">Nome do Novo Paciente</label>
-            <input type="text" id="pacienteNome" name="pacienteNome" autocomplete="off">
+          <div class="form-group autocomplete-container">
+            <label for="pacienteInput">Nome do Paciente</label>
+            <input type="text" id="pacienteInput" name="pacienteInput" placeholder="Digite o nome do paciente..."
+              autocomplete="off" required>
+            <div id="suggestions-box" class="suggestions-box"></div>
+            <input type="hidden" id="selectedPatientId" value="">
           </div>
 
           <div class="form-row">
@@ -113,11 +108,15 @@
               <label for="numeroVisitas">Total de visitas no dia</label>
               <input type="number" id="numeroVisitas" name="numeroVisitas" value="1" min="1" max="3" required>
             </div>
-            <div class="form-group alta-warning">
-              <input type="checkbox" id="marcarAlta" name="marcarAlta">
-              <label for="marcarAlta">Dar Alta ao Paciente</label>
-            </div>
           </div>
+
+          <details id="alta-section" class="alta-details">
+            <summary class="alta-summary">Dar alta ao paciente?</summary>
+            <div class="alta-warning" style="margin-top: 0.75rem;">
+              <input type="checkbox" id="marcarAlta" name="marcarAlta">
+              <label for="marcarAlta">Sim, confirmar Alta Hospitalar neste registro</label>
+            </div>
+          </details>
 
           <button type="submit" class="btn-primary">Registrar Visita</button>
         </form>
@@ -125,6 +124,9 @@
 
       <div class="card list-card">
         <h3>Pacientes Ativos — Atalho Rápido</h3>
+        <p id="shortcut-context"
+          style="font-size: 0.85rem; color: var(--color-text-secondary); margin-bottom: 1rem; font-family: var(--font-body);">
+        </p>
         <div class="table-container">
           <table id="prev-day-table">
             <thead>
@@ -138,7 +140,8 @@
               <!-- Data injected via JS -->
             </tbody>
           </table>
-          <p id="empty-prev-day" class="empty-state">Nenhum paciente ativo nos últimos 5 dias.</p>
+          <p id="empty-prev-day" class="empty-state">Nenhum paciente ativo encontrado. Use o formulário acima para
+            registrar um novo paciente.</p>
         </div>
       </div>
     </section>
@@ -148,6 +151,7 @@
       <header class="screen-header">
         <h2 class="title">Ficha de Pacientes</h2>
         <div class="filters">
+          <input type="search" id="filter-search" placeholder="Buscar por nome..." style="min-width: 200px;">
           <select id="filter-hospital"></select>
           <select id="filter-status"></select>
           <button id="btn-export" class="btn-secondary">Exportar CSV</button>
@@ -173,7 +177,8 @@
               <!-- Data injected via JS -->
             </tbody>
           </table>
-          <p id="empty-patients" class="empty-state">Nenhum registro encontrado.</p>
+          <p id="empty-patients" class="empty-state">Nenhum paciente encontrado para os filtros selecionados. Tente
+            alterar os critérios de busca.</p>
         </div>
       </div>
     </section>
@@ -207,7 +212,8 @@
               <!-- Data injected via JS -->
             </tbody>
           </table>
-          <p id="empty-summary" class="empty-state">Sem registros no mês.</p>
+          <p id="empty-summary" class="empty-state">Nenhuma visita registrada no mês selecionado. Selecione outro mês
+            acima.</p>
         </div>
       </div>
     </section>
@@ -261,6 +267,20 @@
         <div class="form-row" style="margin-top: 1rem;">
           <button id="btn-save-visit" class="btn-primary" style="flex:1; margin-right: 0.5rem;">Salvar</button>
           <button id="btn-cancel-visit" class="btn-secondary" style="flex:1;">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Confirmação Genérico -->
+    <div id="confirm-modal" class="modal-overlay">
+      <div class="card modal-card" style="text-align: center;">
+        <h3 id="confirm-title" style="border: none; padding: 0; margin-bottom: 0.5rem;">Confirmação</h3>
+        <p id="confirm-message"
+          style="color: var(--color-text-secondary); font-family: var(--font-body); margin-bottom: 1.5rem;"></p>
+        <div class="form-row" style="margin-top: 0;">
+          <button id="confirm-yes" class="btn-primary"
+            style="flex:1; margin-right: 0.5rem; background-color: #d9534f;">Confirmar</button>
+          <button id="confirm-no" class="btn-secondary" style="flex:1;">Cancelar</button>
         </div>
       </div>
     </div>

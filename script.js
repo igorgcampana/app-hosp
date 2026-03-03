@@ -1132,7 +1132,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           html += `<div class="cal-patient">
                      <strong>${esc(record.pacienteNome)}${visitCountIndicator}</strong>
                      <span>${esc(record.hospital)}</span>
-                     <div class="cal-actions col-actions" style="margin-top: 5px; text-align: right;">
+                     <div class="col-actions" style="margin-top: 5px; text-align: right;">
                         <button class="btn-action" title="Editar Visita" data-action="edit-visit" data-patient-id="${escAttr(record.patientId)}" data-hist-id="${escAttr(record.histId)}">✏️</button>
                         <button class="btn-action" title="Excluir Visita" data-action="delete-visit" data-patient-id="${escAttr(record.patientId)}" data-hist-id="${escAttr(record.histId)}">🗑️</button>
                      </div>

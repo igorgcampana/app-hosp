@@ -82,11 +82,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   const filterSearch = document.getElementById('filter-search');
   const filterHospital = document.getElementById('filter-hospital');
   const filterStatus = document.getElementById('filter-status');
+  const filterStartDate = document.getElementById('filter-start-date');
+  const filterEndDate = document.getElementById('filter-end-date');
   const btnExport = document.getElementById('btn-export');
   const thSortables = document.querySelectorAll('th[data-sort]');
 
   // DOM Elements - Screen 3 (Calendario)
-  const filterMonth = document.getElementById('filter-month');
+  const filterCalStartDate = document.getElementById('filter-cal-start-date');
+  const filterCalEndDate = document.getElementById('filter-cal-end-date');
   const btnExportCalendar = document.getElementById('btn-export-calendar');
   const calendarGrid = document.getElementById('calendar-grid');
   const summaryTableBody = document.querySelector('#summary-table tbody');
@@ -115,9 +118,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Set default date to today
   const todayDateObj = new Date();
   const today = `${todayDateObj.getFullYear()}-${String(todayDateObj.getMonth() + 1).padStart(2, '0')}-${String(todayDateObj.getDate()).padStart(2, '0')}`;
+  const firstDayOfMonth = `${todayDateObj.getFullYear()}-${String(todayDateObj.getMonth() + 1).padStart(2, '0')}-01`;
+
   inputDataVisita.value = today;
   inputDataVisita.setAttribute('max', today);
-  filterMonth.value = today.substring(0, 7); // YYYY-MM
+
+  if (filterStartDate) filterStartDate.value = firstDayOfMonth;
+  if (filterEndDate) filterEndDate.value = today;
+  if (filterCalStartDate) filterCalStartDate.value = firstDayOfMonth;
+  if (filterCalEndDate) filterCalEndDate.value = today;
 
   // --- CORE UTILS ---
 
@@ -685,6 +694,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     filterSearch.addEventListener('input', renderPatientsTable);
     filterHospital.addEventListener('change', renderPatientsTable);
     if (filterStatus) filterStatus.addEventListener('change', renderPatientsTable);
+    if (filterStartDate) filterStartDate.addEventListener('change', renderPatientsTable);
+    if (filterEndDate) filterEndDate.addEventListener('change', renderPatientsTable);
     btnExport.addEventListener('click', exportCSV);
   }
 
@@ -692,6 +703,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const hospFilter = filterHospital.value;
     const statusFilter = filterStatus ? filterStatus.value : 'Todos';
     const searchQuery = filterSearch.value.trim().toLowerCase();
+
+    const startStr = filterStartDate ? filterStartDate.value : '';
+    const endStr = filterEndDate ? filterEndDate.value : '';
 
     return patients.map(p => {
       const isInternado = isPatientActive(p, today);
@@ -702,7 +716,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         (statusFilter === STATUS.INTERNADO && p.isInternado) ||
         (statusFilter === STATUS.ALTA && !p.isInternado);
       const matchSearch = !searchQuery || p.pacienteNome.toLowerCase().includes(searchQuery);
-      return matchHosp && matchStatus && matchSearch;
+
+      let matchDate = true;
+      if (startStr || endStr) {
+        if (!p.historico || p.historico.length === 0) {
+          matchDate = false;
+        } else {
+          matchDate = p.historico.some(h => {
+            if (startStr && h.data < startStr) return false;
+            if (endStr && h.data > endStr) return false;
+            return true;
+          });
+        }
+      }
+
+      return matchHosp && matchStatus && matchSearch && matchDate;
     });
   }
 
@@ -966,20 +994,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // SCREEN 3: VISÃO CALENDÁRIO
-  filterMonth.addEventListener('change', renderCalendar);
+  filterCalStartDate.addEventListener('change', renderCalendar);
+  filterCalEndDate.addEventListener('change', renderCalendar);
   if (btnExportCalendar) {
     btnExportCalendar.addEventListener('click', exportCalendarCSV);
   }
 
   function exportCalendarCSV() {
-    const monthFilter = filterMonth.value;
-    const monthlyPatients = patients.filter(p => p.historico && p.historico.some(h => h.data.startsWith(monthFilter)));
+    const startStr = filterCalStartDate.value;
+    const endStr = filterCalEndDate.value;
+
+    const monthlyPatients = patients.filter(p => {
+      if (!p.historico) return false;
+      return p.historico.some(h => {
+        if (startStr && h.data < startStr) return false;
+        if (endStr && h.data > endStr) return false;
+        return true;
+      });
+    });
     if (monthlyPatients.length === 0) return;
 
     const visitsByDate = {};
     monthlyPatients.forEach(p => {
       p.historico.forEach(h => {
-        if (h.data.startsWith(monthFilter)) {
+        let isMatch = true;
+        if (startStr && h.data < startStr) isMatch = false;
+        if (endStr && h.data > endStr) isMatch = false;
+
+        if (isMatch) {
           if (!visitsByDate[h.data]) visitsByDate[h.data] = {};
           if (!visitsByDate[h.data][h.medico]) visitsByDate[h.data][h.medico] = [];
           visitsByDate[h.data][h.medico].push({
@@ -1037,7 +1079,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const doctorTotals = {};
     monthlyPatients.forEach(p => {
       p.historico.forEach(h => {
-        if (h.data.startsWith(monthFilter)) {
+        let isMatch = true;
+        if (startStr && h.data < startStr) isMatch = false;
+        if (endStr && h.data > endStr) isMatch = false;
+
+        if (isMatch) {
           if (!doctorTotals[h.medico]) doctorTotals[h.medico] = 0;
           doctorTotals[h.medico] += parseInt(h.visitas, 10) || 0;
         }
@@ -1056,7 +1102,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `calendario_${monthFilter}.csv`);
+
+    let expFile = 'calendario.csv';
+    if (startStr && endStr) expFile = `calendario_${startStr}_ate_${endStr}.csv`;
+    else if (startStr) expFile = `calendario_desde_${startStr}.csv`;
+
+    link.setAttribute("download", expFile);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1068,14 +1119,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (patients.length === 0) return;
 
-    const monthFilter = filterMonth.value;
+    const startStr = filterCalStartDate.value;
+    const endStr = filterCalEndDate.value;
+
     const visitsByDate = {};
     const visitsByDoctor = {};
 
     patients.forEach(p => {
       if (!p.historico) return;
       p.historico.forEach((h) => {
-        if (h.data.startsWith(monthFilter)) {
+        let isMatch = true;
+        if (startStr && h.data < startStr) isMatch = false;
+        if (endStr && h.data > endStr) isMatch = false;
+
+        if (isMatch) {
           if (!visitsByDate[h.data]) visitsByDate[h.data] = {};
           if (!visitsByDate[h.data][h.medico]) visitsByDate[h.data][h.medico] = [];
           visitsByDate[h.data][h.medico].push({

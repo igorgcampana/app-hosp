@@ -1003,6 +1003,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   function exportCalendarCSV() {
     const startStr = filterCalStartDate.value;
     const endStr = filterCalEndDate.value;
+    let rangeStr = 'Geral';
+    if (startStr && endStr) rangeStr = `${formatDateBR(startStr)} a ${formatDateBR(endStr)}`;
+    else if (startStr) rangeStr = `Desde ${formatDateBR(startStr)}`;
+    else if (endStr) rangeStr = `Até ${formatDateBR(endStr)}`;
 
     const monthlyPatients = patients.filter(p => {
       if (!p.historico) return false;
@@ -1044,7 +1048,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       sortedDocs.forEach((doc, idx) => {
         const col = [];
-        col.push(idx === 0 ? `Mês: ${monthFilter}` : '');
+        col.push(idx === 0 ? `Período: ${rangeStr}` : '');
         col.push(idx === 0 ? ddmm : '');
         col.push(doc);
 

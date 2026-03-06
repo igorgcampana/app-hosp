@@ -80,6 +80,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const patientsTableBody = document.querySelector('#patients-table tbody');
   const emptyPatients = document.getElementById('empty-patients');
   const filterSearch = document.getElementById('filter-search');
+  const filterInternacao = document.getElementById('filter-internacao');
   const filterHospital = document.getElementById('filter-hospital');
   const filterStatus = document.getElementById('filter-status');
   const filterStartDate = document.getElementById('filter-start-date');
@@ -339,6 +340,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     populateSelect(inputHospital, HOSPITALS);
     populateSelect(inputInternacao, INTERNACAO_TYPES);
     populateSelect(filterHospital, HOSPITALS, { includeAll: true, allLabel: 'Todos os Hospitais' });
+    if (filterInternacao) populateSelect(filterInternacao, INTERNACAO_TYPES, { includeAll: true, allLabel: 'Todas as Internações' });
     // filter-status: labels diferem dos values ("Internados" / "Altas"), criado manualmente
     filterStatus.innerHTML = '';
     filterStatus.appendChild(new Option('Todos os Status', 'Todos'));
@@ -700,6 +702,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // SCREEN 2: FICHA DE PACIENTES
   function setupFichaFilters() {
     filterSearch.addEventListener('input', renderPatientsTable);
+    if (filterInternacao) filterInternacao.addEventListener('change', renderPatientsTable);
     filterHospital.addEventListener('change', renderPatientsTable);
     if (filterStatus) filterStatus.addEventListener('change', renderPatientsTable);
     if (filterStartDate) filterStartDate.addEventListener('change', renderPatientsTable);
@@ -709,6 +712,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function getFilteredPatients() {
     const hospFilter = filterHospital.value;
+    const internacaoFilter = filterInternacao ? filterInternacao.value : 'Todos';
     const statusFilter = filterStatus ? filterStatus.value : 'Todos';
     const searchQuery = filterSearch.value.trim().toLowerCase();
 
@@ -720,6 +724,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       return { ...p, isInternado };
     }).filter(p => {
       const matchHosp = hospFilter === 'Todos' || p.hospital === hospFilter;
+      const patientInternacao = p.internacao || 'Particular';
+      const matchInternacao = internacaoFilter === 'Todos' || patientInternacao === internacaoFilter;
       const matchStatus = statusFilter === 'Todos' ||
         (statusFilter === STATUS.INTERNADO && p.isInternado) ||
         (statusFilter === STATUS.ALTA && !p.isInternado);
@@ -738,7 +744,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       }
 
-      return matchHosp && matchStatus && matchSearch && matchDate;
+      return matchHosp && matchInternacao && matchStatus && matchSearch && matchDate;
     });
   }
 
@@ -1034,8 +1040,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     const hosp = filterHospital.value;
+    const internacao = filterInternacao ? filterInternacao.value : 'Todos';
     const stat = filterStatus ? filterStatus.value : 'Todos';
-    const filename = `censo_hospitalar_${hosp}_${stat}.csv`.replace(/ /g, '_').toLowerCase();
+    const filename = `censo_hospitalar_${hosp}_${internacao}_${stat}.csv`.replace(/ /g, '_').toLowerCase();
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);

@@ -140,9 +140,12 @@ h6 {
 }
 
 /* PERMISSIONS */
-body.role-manager .btn-action,
 body.role-manager #novoPacienteGroup,
-body.role-manager .col-actions {
+body.role-manager [data-action="edit-patient"],
+body.role-manager [data-action="delete-patient"],
+body.role-manager [data-action="add-visit"],
+body.role-manager [data-action="edit-visit"],
+body.role-manager [data-action="delete-visit"] {
   display: none !important;
 }
 
@@ -850,12 +853,6 @@ tbody tr:hover {
     padding-top: 0.75rem;
     border-top: 1px solid var(--color-border);
     margin-top: 0.5rem;
-  }
-
-  /* Quando o gestor não vê a coluna Ações, a penúltima td assume o visual de encerramento */
-  body.role-manager #patients-table tbody td:nth-last-child(2) {
-    padding-bottom: 0.75rem;
-    border-bottom: none;
   }
 
   /* Conserta o traço fantasma no meio do calendário gerado pelo gradiente de overlay */

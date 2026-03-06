@@ -106,6 +106,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnCancelEdit = document.getElementById('btn-cancel-edit');
   let currentEditingPatientId = null;
 
+  // DOM Elements - Patient History Modal
+  const historyModal = document.getElementById('patient-history-modal');
+  const historyModalTitle = document.getElementById('history-modal-title');
+  const historyModalSubtitle = document.getElementById('history-modal-subtitle');
+  const historyModalTbody = document.getElementById('history-modal-tbody');
+  const historyModalEmpty = document.getElementById('history-modal-empty');
+  const btnCloseHistory = document.getElementById('btn-close-history');
+
   // DOM Elements - Edit Visit Modal
   const editVisitModal = document.getElementById('edit-visit-modal');
   const editVisitPatientLabel = document.getElementById('edit-visit-patient-label');
@@ -798,6 +806,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${formatDateBR(p.dataUltimaVisita)}</td>
         <td>${dias}</td>
         <td class="col-actions">
+           <button class="btn-action" title="Histórico de Visitas" data-action="view-history" data-patient-id="${escAttr(p.id)}">🕒</button>
            <button class="btn-action" title="Editar Nome e Hospital" data-action="edit-patient" data-patient-id="${escAttr(p.id)}">✏️</button>
            <button class="btn-action" title="Excluir Paciente" data-action="delete-patient" data-patient-id="${escAttr(p.id)}">🗑️</button>
         </td>
@@ -835,6 +844,41 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderCalendar();
       showToast('Paciente excluído com sucesso.');
     }
+  }
+
+  function showPatientHistory(id) {
+    const p = patients.find(pat => pat.id === id);
+    if (!p) return;
+
+    historyModalSubtitle.textContent = `${p.pacienteNome} — ${p.hospital}`;
+    historyModalTbody.innerHTML = '';
+
+    // Sort historico by descending date
+    const historicoSorted = (p.historico || []).slice().sort((a, b) => {
+      if (a.data > b.data) return -1;
+      if (a.data < b.data) return 1;
+      return 0;
+    });
+
+    if (historicoSorted.length === 0) {
+      historyModalEmpty.style.display = 'block';
+      historyModalTbody.parentElement.style.display = 'none';
+    } else {
+      historyModalEmpty.style.display = 'none';
+      historyModalTbody.parentElement.style.display = 'table';
+
+      historicoSorted.forEach(h => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${formatDateBR(h.data)}</td>
+          <td>${esc(h.medico)}</td>
+          <td>${h.visitas}</td>
+        `;
+        historyModalTbody.appendChild(tr);
+      });
+    }
+
+    historyModal.classList.add('active');
   }
 
   function setupModalListeners() {
@@ -964,6 +1008,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (e.target === editVisitModal) {
         editVisitModal.classList.remove('active');
         currentEditingVisit = null;
+      }
+    });
+
+    btnCloseHistory.addEventListener('click', () => {
+      historyModal.classList.remove('active');
+    });
+
+    historyModal.addEventListener('click', (e) => {
+      if (e.target === historyModal) {
+        historyModal.classList.remove('active');
       }
     });
   }
@@ -1278,6 +1332,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Ações síncronas (abrir modal) — não precisam de guard
       if (action === 'edit-patient') { editPatientInfo(patientId); return; }
       if (action === 'edit-visit') { editVisit(patientId, histId); return; }
+      if (action === 'view-history') { showPatientHistory(patientId); return; }
 
       // Ações assíncronas — proteger contra duplo clique
       if (isProcessing) return;

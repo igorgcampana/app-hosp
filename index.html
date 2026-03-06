@@ -263,6 +263,36 @@
       </div>
     </section>
 
+    <!-- Modal de Histórico de Visitas (Paciente) -->
+    <div id="patient-history-modal" class="modal-overlay">
+      <div class="card modal-card" style="max-width: 500px;">
+        <h3 id="history-modal-title">Histórico do Paciente</h3>
+        <p id="history-modal-subtitle"
+          style="color: var(--color-text-secondary); margin-bottom: 1rem; font-family: var(--font-body);"></p>
+
+        <div class="table-container" style="max-height: 300px; overflow-y: auto;">
+          <table id="history-modal-table">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Médico</th>
+                <th>Visitas</th>
+              </tr>
+            </thead>
+            <tbody id="history-modal-tbody">
+              <!-- Data injected via JS -->
+            </tbody>
+          </table>
+          <p id="history-modal-empty" class="empty-state" style="display: none;">Nenhum histórico de visitas encontrado
+            para este paciente.</p>
+        </div>
+
+        <div class="form-row" style="margin-top: 1.5rem;">
+          <button id="btn-close-history" class="btn-secondary" style="width: 100%;">Fechar Histórico</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal para Edição de Paciente -->
     <div id="edit-patient-modal" class="modal-overlay">
       <div class="card modal-card">

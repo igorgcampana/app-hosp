@@ -157,7 +157,6 @@ body.role-manager #btn-gerar-relatorio {
 
 body.role-manager #relatorio-texto,
 body.role-manager #relatorio-cid10 {
-  pointer-events: none;
   background-color: #f0f0f0;
   color: var(--color-text-secondary);
 }

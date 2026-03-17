@@ -409,6 +409,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (btnFicha) btnFicha.classList.add('active');
 
       document.body.classList.add('role-manager');
+      relatorioTextarea.readOnly = true;
+      relatorioCid10Input.readOnly = true;
     }
   }
 

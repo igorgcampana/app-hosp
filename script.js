@@ -107,13 +107,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnCancelEdit = document.getElementById('btn-cancel-edit');
   let currentEditingPatientId = null;
 
-  // DOM Elements - Patient History Modal
-  const historyModal = document.getElementById('patient-history-modal');
-  const historyModalTitle = document.getElementById('history-modal-title');
-  const historyModalSubtitle = document.getElementById('history-modal-subtitle');
-  const historyModalTbody = document.getElementById('history-modal-tbody');
-  const historyModalEmpty = document.getElementById('history-modal-empty');
-  const btnCloseHistory = document.getElementById('btn-close-history');
 
   // DOM Elements - Edit Visit Modal
   const editVisitModal = document.getElementById('edit-visit-modal');
@@ -123,6 +116,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnSaveVisit = document.getElementById('btn-save-visit');
   const btnCancelVisit = document.getElementById('btn-cancel-visit');
   let currentEditingVisit = null; // { patientId, histId }
+
+  // DOM Elements - Relatório Modal
+  const relatorioModal = document.getElementById('relatorio-modal');
+  const relatorioModalTitle = document.getElementById('relatorio-modal-title');
+  const relatorioModalSubtitle = document.getElementById('relatorio-modal-subtitle');
+  const relatorioTextarea = document.getElementById('relatorio-texto');
+  const relatorioCid10Input = document.getElementById('relatorio-cid10');
+  const btnGerarRelatorio = document.getElementById('btn-gerar-relatorio');
+  const btnCopiarRelatorio = document.getElementById('btn-copiar-relatorio');
+  const btnSalvarRelatorio = document.getElementById('btn-salvar-relatorio');
+  const btnFecharRelatorio = document.getElementById('btn-fechar-relatorio');
+  let currentRelatorioPatientId = null;
 
   // Set default date to today
   const todayDateObj = new Date();
@@ -346,6 +351,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     filterStatus.appendChild(new Option('Todos os Status', 'Todos'));
     filterStatus.appendChild(new Option('Internados', STATUS.INTERNADO));
     filterStatus.appendChild(new Option('Altas', STATUS.ALTA));
+    filterStatus.value = STATUS.INTERNADO;
     populateSelect(editHospital, HOSPITALS);
     populateSelect(editInternacao, INTERNACAO_TYPES);
     populateSelect(editVisitMedico, DOCTORS);
@@ -812,8 +818,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${formatDateBR(p.dataUltimaVisita)}</td>
         <td>${dias}</td>
         <td class="col-actions">
-           <button class="btn-action" title="Histórico de Visitas" data-action="view-history" data-patient-id="${escAttr(p.id)}">🕒</button>
-           <button class="btn-action" title="Editar Nome e Hospital" data-action="edit-patient" data-patient-id="${escAttr(p.id)}">✏️</button>
+<button class="btn-action" title="Relatório de Internação" data-action="view-relatorio" data-patient-id="${escAttr(p.id)}">📋</button>
+<button class="btn-action" title="Editar Nome e Hospital" data-action="edit-patient" data-patient-id="${escAttr(p.id)}">✏️</button>
            <button class="btn-action" title="Excluir Paciente" data-action="delete-patient" data-patient-id="${escAttr(p.id)}">🗑️</button>
         </td>
       `;
@@ -852,39 +858,70 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function showPatientHistory(id) {
-    const p = patients.find(pat => pat.id === id);
+
+  function generateReportText(p) {
+    const nome = p.pacienteNome || '';
+    const hospital = p.hospital || '';
+    const internacao = p.internacao || '';
+    const dataInicio = formatDateBR(p.dataPrimeiraAvaliacao);
+    const dataFim = formatDateBR(p.dataUltimaVisita);
+
+    const historico = p.historico || [];
+    const totalVisitas = historico.reduce((sum, h) => sum + (parseInt(h.visitas, 10) || 0), 0);
+    const medicos = [...new Set(historico.map(h => h.medico).filter(Boolean))].sort().join(', ');
+
+    const cid10 = relatorioCid10Input.value.trim();
+    const cid10Line = cid10 ? `\nCID-10: ${cid10}` : '';
+
+    return `RELATÓRIO DE INTERNAÇÃO HOSPITALAR
+
+Paciente: ${nome}
+Hospital: ${hospital} (${internacao})
+Período: ${dataInicio} a ${dataFim}
+Total de visitas: ${totalVisitas}
+Equipe médica: ${medicos || '—'}${cid10Line}
+
+Evolução clínica:
+`;
+  }
+
+  async function loadRelatorio(patientId) {
+    const { data, error } = await supabaseClient
+      .from('relatorios')
+      .select('cid10, texto')
+      .eq('patient_id', patientId)
+      .maybeSingle();
+
+    if (error) { console.error('Erro ao carregar relatório:', error); return; }
+
+    relatorioCid10Input.value = data?.cid10 || '';
+    relatorioTextarea.value = data?.texto || '';
+  }
+
+  async function saveRelatorio(patientId) {
+    const cid10 = relatorioCid10Input.value.trim();
+    const texto = relatorioTextarea.value;
+
+    const { error } = await supabaseClient
+      .from('relatorios')
+      .upsert({ patient_id: patientId, cid10, texto, updated_at: new Date().toISOString() },
+               { onConflict: 'patient_id' });
+
+    if (error) { handleSupabaseError(error, 'salvar relatório'); return; }
+    showToast('Relatório salvo!');
+  }
+
+  async function openRelatorioModal(patientId) {
+    const p = patients.find(pat => pat.id === patientId);
     if (!p) return;
 
-    historyModalSubtitle.textContent = `${p.pacienteNome} — ${p.hospital}`;
-    historyModalTbody.innerHTML = '';
+    currentRelatorioPatientId = patientId;
+    relatorioModalSubtitle.textContent = `${p.pacienteNome} — ${p.hospital}`;
+    relatorioCid10Input.value = '';
+    relatorioTextarea.value = '';
 
-    // Sort historico by descending date
-    const historicoSorted = (p.historico || []).slice().sort((a, b) => {
-      if (a.data > b.data) return -1;
-      if (a.data < b.data) return 1;
-      return 0;
-    });
-
-    if (historicoSorted.length === 0) {
-      historyModalEmpty.style.display = 'block';
-      historyModalTbody.parentElement.style.display = 'none';
-    } else {
-      historyModalEmpty.style.display = 'none';
-      historyModalTbody.parentElement.style.display = 'table';
-
-      historicoSorted.forEach(h => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${formatDateBR(h.data)}</td>
-          <td>${esc(h.medico)}</td>
-          <td>${h.visitas}</td>
-        `;
-        historyModalTbody.appendChild(tr);
-      });
-    }
-
-    historyModal.classList.add('active');
+    await loadRelatorio(patientId);
+    relatorioModal.classList.add('active');
   }
 
   function setupModalListeners() {
@@ -953,6 +990,45 @@ document.addEventListener('DOMContentLoaded', async () => {
       currentEditingVisit = null;
     });
 
+    btnFecharRelatorio.addEventListener('click', () => {
+      relatorioModal.classList.remove('active');
+      currentRelatorioPatientId = null;
+    });
+
+    relatorioModal.addEventListener('click', (e) => {
+      if (e.target === relatorioModal) {
+        relatorioModal.classList.remove('active');
+        currentRelatorioPatientId = null;
+      }
+    });
+
+    btnGerarRelatorio.addEventListener('click', () => {
+      if (!currentRelatorioPatientId) return;
+      const p = patients.find(pat => pat.id === currentRelatorioPatientId);
+      if (!p) return;
+      relatorioTextarea.value = generateReportText(p);
+    });
+
+    btnCopiarRelatorio.addEventListener('click', () => {
+      const text = relatorioTextarea.value;
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(() => showToast('Copiado!')).catch(() => showToast('Erro ao copiar.'));
+    });
+
+    btnSalvarRelatorio.addEventListener('click', async () => {
+      if (!currentRelatorioPatientId || isProcessing) return;
+      isProcessing = true;
+      btnSalvarRelatorio.textContent = 'Salvando...';
+      btnSalvarRelatorio.disabled = true;
+      try {
+        await saveRelatorio(currentRelatorioPatientId);
+      } finally {
+        isProcessing = false;
+        btnSalvarRelatorio.textContent = 'Salvar';
+        btnSalvarRelatorio.disabled = false;
+      }
+    });
+
     btnSaveVisit.addEventListener('click', async () => {
       if (isProcessing) return;
       if (!currentEditingVisit) return;
@@ -1017,15 +1093,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
-    btnCloseHistory.addEventListener('click', () => {
-      historyModal.classList.remove('active');
-    });
-
-    historyModal.addEventListener('click', (e) => {
-      if (e.target === historyModal) {
-        historyModal.classList.remove('active');
-      }
-    });
   }
 
   function exportCSV() {
@@ -1339,7 +1406,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Ações síncronas (abrir modal) — não precisam de guard
       if (action === 'edit-patient') { editPatientInfo(patientId); return; }
       if (action === 'edit-visit') { editVisit(patientId, histId); return; }
-      if (action === 'view-history') { showPatientHistory(patientId); return; }
+      if (action === 'view-relatorio') { openRelatorioModal(patientId); return; }
 
       // Ações assíncronas — proteger contra duplo clique
       if (isProcessing) return;

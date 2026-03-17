@@ -811,9 +811,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     emptyPatients.style.display = 'none';
     patientsTableBody.parentElement.style.display = 'table';
 
-    const labels = ['Nome', 'Internação', 'Hospital', 'Status', 'Relatório', ''];
+    const labels = ['Nome', 'Internação', 'Hospital', 'Status', '1ª Aval.', 'Última', 'Dias', 'Relatório', ''];
 
     filtered.forEach(p => {
+      const dias = diasDeInternacao(p.dataPrimeiraAvaliacao, p.dataUltimaVisita);
       const temRelatorio = relatoriosSet.has(p.id);
       const tr = document.createElement('tr');
       tr.innerHTML = `
@@ -825,6 +826,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             ${p.isInternado ? STATUS.INTERNADO : STATUS.ALTA}
           </span>
         </td>
+        <td>${formatDateBR(p.dataPrimeiraAvaliacao)}</td>
+        <td>${formatDateBR(p.dataUltimaVisita)}</td>
+        <td>${dias}</td>
         <td style="text-align:center; font-size:1.1rem; color:${temRelatorio ? '#2e7d32' : '#c62828'};">${temRelatorio ? '✓' : '✗'}</td>
         <td class="col-actions">
 <button class="btn-action" title="Relatório de Internação" data-action="view-relatorio" data-patient-id="${escAttr(p.id)}">📋</button>

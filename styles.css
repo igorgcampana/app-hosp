@@ -149,6 +149,19 @@ body.role-manager [data-action="delete-visit"] {
   display: none !important;
 }
 
+body.role-manager #btn-salvar-relatorio,
+body.role-manager #btn-excluir-relatorio,
+body.role-manager #btn-gerar-relatorio {
+  display: none !important;
+}
+
+body.role-manager #relatorio-texto,
+body.role-manager #relatorio-cid10 {
+  pointer-events: none;
+  background-color: #f0f0f0;
+  color: var(--color-text-secondary);
+}
+
 .screen.active {
   display: block;
 }

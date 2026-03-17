@@ -1020,6 +1020,7 @@ São Paulo, ${dataExtenso}`;
             await recalcPatientDates(p.id);
             await fetchAllData();
             renderPatientsTable();
+            renderCalendar();
             showToast('Paciente atualizado!');
 
             const virandoAlta = ehAlta && p.statusManual !== STATUS.ALTA;

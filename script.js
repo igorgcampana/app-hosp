@@ -1057,12 +1057,16 @@ São Paulo, ${dataExtenso}`;
 
       // Preserva o texto livre digitado entre "Total de visitas" e "Recebeu visitas"
       let textoLivre = '';
-      const atual = relatorioTextarea.value;
+      const atual = relatorioTextarea.value.trim();
       const idxRecebeu = atual.indexOf('\nRecebeu visitas de');
       const idxTotal = atual.indexOf('Total de visitas:');
       if (idxTotal > -1 && idxRecebeu > -1) {
+        // Template já gerado — extrai só o trecho do meio
         const aposTotal = atual.indexOf('\n', idxTotal) + 1;
         textoLivre = atual.slice(aposTotal, idxRecebeu).trim();
+      } else {
+        // Usuário digitou texto sem template — usa tudo como texto livre
+        textoLivre = atual;
       }
 
       relatorioTextarea.value = generateReportText(p, textoLivre);

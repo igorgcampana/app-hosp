@@ -127,6 +127,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnGerarRelatorio = document.getElementById('btn-gerar-relatorio');
   const btnCopiarRelatorio = document.getElementById('btn-copiar-relatorio');
   const btnSalvarRelatorio = document.getElementById('btn-salvar-relatorio');
+  const btnExcluirRelatorio = document.getElementById('btn-excluir-relatorio');
   const btnFecharRelatorio = document.getElementById('btn-fechar-relatorio');
   let currentRelatorioPatientId = null;
 
@@ -949,6 +950,7 @@ São Paulo, ${dataExtenso}`;
 
     if (error) { handleSupabaseError(error, 'salvar relatório'); return; }
     relatoriosSet.add(patientId);
+    btnExcluirRelatorio.style.display = '';
     renderPatientsTable();
     showToast('Relatório salvo!');
   }
@@ -963,6 +965,7 @@ São Paulo, ${dataExtenso}`;
     relatorioTextarea.value = '';
 
     await loadRelatorio(patientId);
+    btnExcluirRelatorio.style.display = relatoriosSet.has(patientId) ? '' : 'none';
     relatorioModal.classList.add('active');
   }
 
@@ -1041,6 +1044,24 @@ São Paulo, ${dataExtenso}`;
     btnFecharRelatorio.addEventListener('click', () => {
       relatorioModal.classList.remove('active');
       currentRelatorioPatientId = null;
+    });
+
+    btnExcluirRelatorio.addEventListener('click', async () => {
+      if (!currentRelatorioPatientId || isProcessing) return;
+      if (!(await showConfirm('Deseja excluir o relatório deste paciente?', 'Excluir Relatório'))) return;
+      isProcessing = true;
+      try {
+        const { error } = await supabaseClient.from('relatorios').delete().eq('patient_id', currentRelatorioPatientId);
+        if (error) { handleSupabaseError(error, 'excluir relatório'); return; }
+        relatoriosSet.delete(currentRelatorioPatientId);
+        relatorioCid10Input.value = '';
+        relatorioTextarea.value = '';
+        btnExcluirRelatorio.style.display = 'none';
+        renderPatientsTable();
+        showToast('Relatório excluído.');
+      } finally {
+        isProcessing = false;
+      }
     });
 
     relatorioModal.addEventListener('click', (e) => {

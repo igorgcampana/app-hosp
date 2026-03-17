@@ -860,29 +860,48 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
   function generateReportText(p) {
+    const HOSPITAL_NAMES = {
+      'HVNS': 'Hospital Vila Nova Star',
+      'HSL': 'Hospital Sírio-Libanês',
+      'H9J': 'Hospital 9 de Julho',
+      'Outro': 'Outro'
+    };
+    const DOCTOR_TITLES = {
+      'Beatriz': 'Dra. Beatriz',
+      'Eduardo': 'Dr. Eduardo',
+      'Felipe Reinaldo': 'Dr. Felipe Reinaldo',
+      'Igor': 'Dr. Igor',
+      'Tamires': 'Dra. Tamires'
+    };
+    const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+
     const nome = p.pacienteNome || '';
-    const hospital = p.hospital || '';
-    const internacao = p.internacao || '';
+    const hospital = HOSPITAL_NAMES[p.hospital] || p.hospital || '';
     const dataInicio = formatDateBR(p.dataPrimeiraAvaliacao);
     const dataFim = formatDateBR(p.dataUltimaVisita);
 
     const historico = p.historico || [];
     const totalVisitas = historico.reduce((sum, h) => sum + (parseInt(h.visitas, 10) || 0), 0);
-    const medicos = [...new Set(historico.map(h => h.medico).filter(Boolean))].sort().join(', ');
+    const medicos = [...new Set(historico.map(h => h.medico).filter(Boolean))]
+      .sort()
+      .map(m => DOCTOR_TITLES[m] || m)
+      .join(', ');
 
     const cid10 = relatorioCid10Input.value.trim();
-    const cid10Line = cid10 ? `\nCID-10: ${cid10}` : '';
+    const hoje = new Date();
+    const dataExtenso = `${hoje.getDate()} de ${MESES[hoje.getMonth()]} de ${hoje.getFullYear()}`;
 
     return `RELATÓRIO DE INTERNAÇÃO HOSPITALAR
-
 Paciente: ${nome}
-Hospital: ${hospital} (${internacao})
+Hospital: ${hospital}
 Período: ${dataInicio} a ${dataFim}
 Total de visitas: ${totalVisitas}
-Equipe médica: ${medicos || '—'}${cid10Line}
 
-Evolução clínica:
-`;
+Recebeu visitas de Dra Samira Apóstolos e equipe médica - ${medicos || '—'}
+
+CID-10: ${cid10}
+
+São Paulo, ${dataExtenso}`;
   }
 
   async function loadRelatorio(patientId) {

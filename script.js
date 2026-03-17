@@ -878,7 +878,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function generateReportText(p) {
+  function generateReportText(p, textoLivre = '') {
     const HOSPITAL_NAMES = {
       'HVNS': 'Hospital Vila Nova Star',
       'HSL': 'Hospital Sírio-Libanês',
@@ -910,12 +910,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const hoje = new Date();
     const dataExtenso = `${hoje.getDate()} de ${MESES[hoje.getMonth()]} de ${hoje.getFullYear()}`;
 
+    const corpoTexto = textoLivre ? `\n${textoLivre}\n` : '\n';
+
     return `RELATÓRIO DE INTERNAÇÃO HOSPITALAR
 Paciente: ${nome}
 Hospital: ${hospital}
 Período: ${dataInicio} a ${dataFim}
 Total de visitas: ${totalVisitas}
-
+${corpoTexto}
 Recebeu visitas de Dra Samira Apóstolos e equipe médica - ${medicos || '—'}
 
 CID-10: ${cid10}
@@ -1052,7 +1054,18 @@ São Paulo, ${dataExtenso}`;
       if (!currentRelatorioPatientId) return;
       const p = patients.find(pat => pat.id === currentRelatorioPatientId);
       if (!p) return;
-      relatorioTextarea.value = generateReportText(p);
+
+      // Preserva o texto livre digitado entre "Total de visitas" e "Recebeu visitas"
+      let textoLivre = '';
+      const atual = relatorioTextarea.value;
+      const idxRecebeu = atual.indexOf('\nRecebeu visitas de');
+      const idxTotal = atual.indexOf('Total de visitas:');
+      if (idxTotal > -1 && idxRecebeu > -1) {
+        const aposTotal = atual.indexOf('\n', idxTotal) + 1;
+        textoLivre = atual.slice(aposTotal, idxRecebeu).trim();
+      }
+
+      relatorioTextarea.value = generateReportText(p, textoLivre);
     });
 
     btnCopiarRelatorio.addEventListener('click', () => {

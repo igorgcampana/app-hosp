@@ -54,6 +54,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // STATE
   let patients = [];
+  let relatoriosSet = new Set(); // patient_ids com relatório salvo
   let currentSort = { column: 'dataUltimaVisita', dir: 'desc' };
   let isProcessing = false;
 
@@ -107,13 +108,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnCancelEdit = document.getElementById('btn-cancel-edit');
   let currentEditingPatientId = null;
 
-  // DOM Elements - Patient History Modal
-  const historyModal = document.getElementById('patient-history-modal');
-  const historyModalTitle = document.getElementById('history-modal-title');
-  const historyModalSubtitle = document.getElementById('history-modal-subtitle');
-  const historyModalTbody = document.getElementById('history-modal-tbody');
-  const historyModalEmpty = document.getElementById('history-modal-empty');
-  const btnCloseHistory = document.getElementById('btn-close-history');
 
   // DOM Elements - Edit Visit Modal
   const editVisitModal = document.getElementById('edit-visit-modal');
@@ -123,6 +117,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnSaveVisit = document.getElementById('btn-save-visit');
   const btnCancelVisit = document.getElementById('btn-cancel-visit');
   let currentEditingVisit = null; // { patientId, histId }
+
+  // DOM Elements - Relatório Modal
+  const relatorioModal = document.getElementById('relatorio-modal');
+  const relatorioModalTitle = document.getElementById('relatorio-modal-title');
+  const relatorioModalSubtitle = document.getElementById('relatorio-modal-subtitle');
+  const relatorioTextarea = document.getElementById('relatorio-texto');
+  const relatorioCid10Input = document.getElementById('relatorio-cid10');
+  const btnGerarRelatorio = document.getElementById('btn-gerar-relatorio');
+  const btnCopiarRelatorio = document.getElementById('btn-copiar-relatorio');
+  const btnSalvarRelatorio = document.getElementById('btn-salvar-relatorio');
+  const btnExcluirRelatorio = document.getElementById('btn-excluir-relatorio');
+  const btnFecharRelatorio = document.getElementById('btn-fechar-relatorio');
+  let currentRelatorioPatientId = null;
+
+  if (userRole === 'manager') {
+    relatorioTextarea.readOnly = true;
+    relatorioCid10Input.readOnly = true;
+  }
 
   // Set default date to today
   const todayDateObj = new Date();
@@ -309,8 +321,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       .from('historico')
       .select('id, patient_id, data, medico, visitas');
 
+    const { data: relData } = await supabaseClient
+      .from('relatorios')
+      .select('patient_id');
+
     if (errPat) { handleSupabaseError(errPat, 'carregar os dados'); return; }
     if (errHist) { handleSupabaseError(errHist, 'carregar os dados'); return; }
+
+    relatoriosSet = new Set((relData || []).map(r => r.patient_id));
 
     const historicoMap = new Map();
     if (histData) {
@@ -346,6 +364,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     filterStatus.appendChild(new Option('Todos os Status', 'Todos'));
     filterStatus.appendChild(new Option('Internados', STATUS.INTERNADO));
     filterStatus.appendChild(new Option('Altas', STATUS.ALTA));
+    filterStatus.value = STATUS.INTERNADO;
     populateSelect(editHospital, HOSPITALS);
     populateSelect(editInternacao, INTERNACAO_TYPES);
     populateSelect(editVisitMedico, DOCTORS);
@@ -441,7 +460,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
       if (errHistInsert) handleSupabaseError(errHistInsert, 'salvar histórico');
     }
-    return { success: true };
+    return { success: true, patientId: newPat?.id };
   }
 
   async function addVisitToExistingPatient({ selectedId, hospital, internacao, ehAlta, dataVisita, numeroVisitas, medico }) {
@@ -481,7 +500,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     await recalcPatientDates(p.id);
-    return { success: true };
+    return { success: true, patientId: p.id };
   }
 
   function setupForm() {
@@ -539,6 +558,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           renderPrevDayTable();
           renderPatientsTable();
           renderCalendar();
+
+          if (ehAlta && result.patientId) {
+            await offerRelatorioAposAlta(result.patientId);
+          }
         }
       } finally {
         isProcessing = false;
@@ -794,10 +817,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     emptyPatients.style.display = 'none';
     patientsTableBody.parentElement.style.display = 'table';
 
-    const labels = ['Nome', 'Internação', 'Hospital', 'Status', '1ª Aval.', 'Última', 'Dias', ''];
+    const labels = ['Nome', 'Internação', 'Hospital', 'Status', '1ª Aval.', 'Última', 'Dias', 'Relatório', ''];
 
     filtered.forEach(p => {
       const dias = diasDeInternacao(p.dataPrimeiraAvaliacao, p.dataUltimaVisita);
+      const temRelatorio = relatoriosSet.has(p.id);
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${esc(p.pacienteNome)}</td>
@@ -811,9 +835,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${formatDateBR(p.dataPrimeiraAvaliacao)}</td>
         <td>${formatDateBR(p.dataUltimaVisita)}</td>
         <td>${dias}</td>
+        <td style="text-align:center; font-size:1.1rem; color:${temRelatorio ? '#2e7d32' : '#c62828'};">${temRelatorio ? '✓' : '✗'}</td>
         <td class="col-actions">
-           <button class="btn-action" title="Histórico de Visitas" data-action="view-history" data-patient-id="${escAttr(p.id)}">🕒</button>
-           <button class="btn-action" title="Editar Nome e Hospital" data-action="edit-patient" data-patient-id="${escAttr(p.id)}">✏️</button>
+<button class="btn-action" title="Relatório de Internação" data-action="view-relatorio" data-patient-id="${escAttr(p.id)}">📋</button>
+<button class="btn-action" title="Editar Nome e Hospital" data-action="edit-patient" data-patient-id="${escAttr(p.id)}">✏️</button>
            <button class="btn-action" title="Excluir Paciente" data-action="delete-patient" data-patient-id="${escAttr(p.id)}">🗑️</button>
         </td>
       `;
@@ -852,39 +877,101 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function showPatientHistory(id) {
-    const p = patients.find(pat => pat.id === id);
+
+  async function offerRelatorioAposAlta(patientId) {
+    if (await showConfirm('Deseja preencher o relatório de alta agora?', 'Relatório de Alta')) {
+      await openRelatorioModal(patientId);
+    }
+  }
+
+  function generateReportText(p, textoLivre = '') {
+    const HOSPITAL_NAMES = {
+      'HVNS': 'Hospital Vila Nova Star',
+      'HSL': 'Hospital Sírio-Libanês',
+      'H9J': 'Hospital 9 de Julho',
+      'Outro': 'Outro'
+    };
+    const DOCTOR_TITLES = {
+      'Beatriz': 'Dra. Beatriz',
+      'Eduardo': 'Dr. Eduardo',
+      'Felipe Reinaldo': 'Dr. Felipe Reinaldo',
+      'Igor': 'Dr. Igor',
+      'Tamires': 'Dra. Tamires'
+    };
+    const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+
+    const nome = p.pacienteNome || '';
+    const hospital = HOSPITAL_NAMES[p.hospital] || p.hospital || '';
+    const dataInicio = formatDateBR(p.dataPrimeiraAvaliacao);
+    const dataFim = formatDateBR(p.dataUltimaVisita);
+
+    const historico = p.historico || [];
+    const totalVisitas = historico.reduce((sum, h) => sum + (parseInt(h.visitas, 10) || 0), 0);
+    const medicos = [...new Set(historico.map(h => h.medico).filter(Boolean))]
+      .sort()
+      .map(m => DOCTOR_TITLES[m] || m)
+      .join(', ');
+
+    const cid10 = relatorioCid10Input.value.trim();
+    const hoje = new Date();
+    const dataExtenso = `${hoje.getDate()} de ${MESES[hoje.getMonth()]} de ${hoje.getFullYear()}`;
+
+    const corpoTexto = textoLivre ? `\n${textoLivre}\n` : '\n';
+
+    return `RELATÓRIO DE INTERNAÇÃO HOSPITALAR
+Paciente: ${nome}
+Hospital: ${hospital}
+Período: ${dataInicio} a ${dataFim}
+Total de visitas: ${totalVisitas}
+${corpoTexto}
+Recebeu visitas de Dra Samira Apóstolos e equipe médica - ${medicos || '—'}
+
+CID-10: ${cid10}
+
+São Paulo, ${dataExtenso}`;
+  }
+
+  async function loadRelatorio(patientId) {
+    const { data, error } = await supabaseClient
+      .from('relatorios')
+      .select('cid10, texto')
+      .eq('patient_id', patientId)
+      .maybeSingle();
+
+    if (error) { console.error('Erro ao carregar relatório:', error); return; }
+
+    relatorioCid10Input.value = data?.cid10 || '';
+    relatorioTextarea.value = data?.texto || '';
+  }
+
+  async function saveRelatorio(patientId) {
+    const cid10 = relatorioCid10Input.value.trim();
+    const texto = relatorioTextarea.value;
+
+    const { error } = await supabaseClient
+      .from('relatorios')
+      .upsert({ patient_id: patientId, cid10, texto, updated_at: new Date().toISOString() },
+               { onConflict: 'patient_id' });
+
+    if (error) { handleSupabaseError(error, 'salvar relatório'); return; }
+    relatoriosSet.add(patientId);
+    btnExcluirRelatorio.style.display = '';
+    renderPatientsTable();
+    showToast('Relatório salvo!');
+  }
+
+  async function openRelatorioModal(patientId) {
+    const p = patients.find(pat => pat.id === patientId);
     if (!p) return;
 
-    historyModalSubtitle.textContent = `${p.pacienteNome} — ${p.hospital}`;
-    historyModalTbody.innerHTML = '';
+    currentRelatorioPatientId = patientId;
+    relatorioModalSubtitle.textContent = `${p.pacienteNome} — ${p.hospital}`;
+    relatorioCid10Input.value = '';
+    relatorioTextarea.value = '';
 
-    // Sort historico by descending date
-    const historicoSorted = (p.historico || []).slice().sort((a, b) => {
-      if (a.data > b.data) return -1;
-      if (a.data < b.data) return 1;
-      return 0;
-    });
-
-    if (historicoSorted.length === 0) {
-      historyModalEmpty.style.display = 'block';
-      historyModalTbody.parentElement.style.display = 'none';
-    } else {
-      historyModalEmpty.style.display = 'none';
-      historyModalTbody.parentElement.style.display = 'table';
-
-      historicoSorted.forEach(h => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${formatDateBR(h.data)}</td>
-          <td>${esc(h.medico)}</td>
-          <td>${h.visitas}</td>
-        `;
-        historyModalTbody.appendChild(tr);
-      });
-    }
-
-    historyModal.classList.add('active');
+    await loadRelatorio(patientId);
+    btnExcluirRelatorio.style.display = relatoriosSet.has(patientId) ? '' : 'none';
+    relatorioModal.classList.add('active');
   }
 
   function setupModalListeners() {
@@ -933,12 +1020,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             await recalcPatientDates(p.id);
             await fetchAllData();
             renderPatientsTable();
+            renderCalendar();
             showToast('Paciente atualizado!');
+
+            const virandoAlta = ehAlta && p.statusManual !== STATUS.ALTA;
+            editModal.classList.remove('active');
+            currentEditingPatientId = null;
+            if (virandoAlta) await offerRelatorioAposAlta(p.id);
           } finally {
             isProcessing = false;
             btnSaveEdit.textContent = 'Salvar';
             btnSaveEdit.disabled = false;
           }
+          return;
         } else {
           alert("O nome do paciente não pode ficar vazio.");
           return;
@@ -951,6 +1045,78 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnCancelVisit.addEventListener('click', () => {
       editVisitModal.classList.remove('active');
       currentEditingVisit = null;
+    });
+
+    btnFecharRelatorio.addEventListener('click', () => {
+      relatorioModal.classList.remove('active');
+      currentRelatorioPatientId = null;
+    });
+
+    btnExcluirRelatorio.addEventListener('click', async () => {
+      if (!currentRelatorioPatientId || isProcessing) return;
+      if (!(await showConfirm('Deseja excluir o relatório deste paciente?', 'Excluir Relatório'))) return;
+      isProcessing = true;
+      try {
+        const { error } = await supabaseClient.from('relatorios').delete().eq('patient_id', currentRelatorioPatientId);
+        if (error) { handleSupabaseError(error, 'excluir relatório'); return; }
+        relatoriosSet.delete(currentRelatorioPatientId);
+        relatorioCid10Input.value = '';
+        relatorioTextarea.value = '';
+        btnExcluirRelatorio.style.display = 'none';
+        renderPatientsTable();
+        showToast('Relatório excluído.');
+      } finally {
+        isProcessing = false;
+      }
+    });
+
+    relatorioModal.addEventListener('click', (e) => {
+      if (e.target === relatorioModal) {
+        relatorioModal.classList.remove('active');
+        currentRelatorioPatientId = null;
+      }
+    });
+
+    btnGerarRelatorio.addEventListener('click', () => {
+      if (!currentRelatorioPatientId) return;
+      const p = patients.find(pat => pat.id === currentRelatorioPatientId);
+      if (!p) return;
+
+      // Preserva o texto livre digitado entre "Total de visitas" e "Recebeu visitas"
+      let textoLivre = '';
+      const atual = relatorioTextarea.value.trim();
+      const idxRecebeu = atual.indexOf('\nRecebeu visitas de');
+      const idxTotal = atual.indexOf('Total de visitas:');
+      if (idxTotal > -1 && idxRecebeu > -1) {
+        // Template já gerado — extrai só o trecho do meio
+        const aposTotal = atual.indexOf('\n', idxTotal) + 1;
+        textoLivre = atual.slice(aposTotal, idxRecebeu).trim();
+      } else {
+        // Usuário digitou texto sem template — usa tudo como texto livre
+        textoLivre = atual;
+      }
+
+      relatorioTextarea.value = generateReportText(p, textoLivre);
+    });
+
+    btnCopiarRelatorio.addEventListener('click', () => {
+      const text = relatorioTextarea.value;
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(() => showToast('Copiado!')).catch(() => showToast('Erro ao copiar.'));
+    });
+
+    btnSalvarRelatorio.addEventListener('click', async () => {
+      if (!currentRelatorioPatientId || isProcessing) return;
+      isProcessing = true;
+      btnSalvarRelatorio.textContent = 'Salvando...';
+      btnSalvarRelatorio.disabled = true;
+      try {
+        await saveRelatorio(currentRelatorioPatientId);
+      } finally {
+        isProcessing = false;
+        btnSalvarRelatorio.textContent = 'Salvar';
+        btnSalvarRelatorio.disabled = false;
+      }
     });
 
     btnSaveVisit.addEventListener('click', async () => {
@@ -1017,15 +1183,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
-    btnCloseHistory.addEventListener('click', () => {
-      historyModal.classList.remove('active');
-    });
-
-    historyModal.addEventListener('click', (e) => {
-      if (e.target === historyModal) {
-        historyModal.classList.remove('active');
-      }
-    });
   }
 
   function exportCSV() {
@@ -1339,7 +1496,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Ações síncronas (abrir modal) — não precisam de guard
       if (action === 'edit-patient') { editPatientInfo(patientId); return; }
       if (action === 'edit-visit') { editVisit(patientId, histId); return; }
-      if (action === 'view-history') { showPatientHistory(patientId); return; }
+      if (action === 'view-relatorio') { openRelatorioModal(patientId); return; }
 
       // Ações assíncronas — proteger contra duplo clique
       if (isProcessing) return;

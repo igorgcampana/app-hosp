@@ -211,7 +211,8 @@
                 <th data-sort="status">Status &#x21D5;</th>
                 <th data-sort="dataPrimeiraAvaliacao">1ª Avaliação &#x21D5;</th>
                 <th data-sort="dataUltimaVisita">Última Avaliação &#x21D5;</th>
-                <th data-sort="diasEntre">Dias (1ª a Últ) &#x21D5;</th>
+                <th data-sort="diasEntre">Dias &#x21D5;</th>
+                <th>Relatório</th>
                 <th class="col-actions">Ações</th>
               </tr>
             </thead>
@@ -264,32 +265,30 @@
       </div>
     </section>
 
-    <!-- Modal de Histórico de Visitas (Paciente) -->
-    <div id="patient-history-modal" class="modal-overlay">
-      <div class="card modal-card" style="max-width: 500px;">
-        <h3 id="history-modal-title">Histórico do Paciente</h3>
-        <p id="history-modal-subtitle"
+    <!-- Modal de Relatório por Internação -->
+    <div id="relatorio-modal" class="modal-overlay">
+      <div class="card modal-card" style="max-width: 560px;">
+        <h3 id="relatorio-modal-title">Relatório de Internação</h3>
+        <p id="relatorio-modal-subtitle"
           style="color: var(--color-text-secondary); margin-bottom: 1rem; font-family: var(--font-body);"></p>
 
-        <div class="table-container" style="max-height: 300px; overflow-y: auto;">
-          <table id="history-modal-table">
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Médico</th>
-                <th>Visitas</th>
-              </tr>
-            </thead>
-            <tbody id="history-modal-tbody">
-              <!-- Data injected via JS -->
-            </tbody>
-          </table>
-          <p id="history-modal-empty" class="empty-state" style="display: none;">Nenhum histórico de visitas encontrado
-            para este paciente.</p>
+        <div class="form-group">
+          <label for="relatorio-cid10">CID-10</label>
+          <input type="text" id="relatorio-cid10" placeholder="Ex: G35">
         </div>
 
-        <div class="form-row" style="margin-top: 1.5rem;">
-          <button id="btn-close-history" class="btn-secondary" style="width: 100%;">Fechar Histórico</button>
+        <div class="form-group">
+          <label for="relatorio-texto">Texto do Relatório</label>
+          <textarea id="relatorio-texto" rows="10"
+            style="width: 100%; font-family: var(--font-body); font-size: 0.9rem; resize: vertical; padding: 0.6rem; border: 1px solid #ccc; border-radius: 6px;"></textarea>
+        </div>
+
+        <div class="form-row" style="margin-top: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+          <button id="btn-gerar-relatorio" class="btn-secondary" style="flex:1;">Gerar Texto</button>
+          <button id="btn-copiar-relatorio" class="btn-secondary" style="flex:1;">Copiar</button>
+          <button id="btn-salvar-relatorio" class="btn-primary" style="flex:1;">Salvar</button>
+          <button id="btn-excluir-relatorio" class="btn-secondary" style="flex:1; display:none; color:#c62828; border-color:#c62828;">Excluir</button>
+          <button id="btn-fechar-relatorio" class="btn-secondary" style="flex:1;">Fechar</button>
         </div>
       </div>
     </div>

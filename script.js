@@ -131,6 +131,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnFecharRelatorio = document.getElementById('btn-fechar-relatorio');
   let currentRelatorioPatientId = null;
 
+  if (userRole === 'manager') {
+    relatorioTextarea.readOnly = true;
+    relatorioCid10Input.readOnly = true;
+  }
+
   // Set default date to today
   const todayDateObj = new Date();
   const today = `${todayDateObj.getFullYear()}-${String(todayDateObj.getMonth() + 1).padStart(2, '0')}-${String(todayDateObj.getDate()).padStart(2, '0')}`;
@@ -409,8 +414,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (btnFicha) btnFicha.classList.add('active');
 
       document.body.classList.add('role-manager');
-      relatorioTextarea.readOnly = true;
-      relatorioCid10Input.readOnly = true;
     }
   }
 

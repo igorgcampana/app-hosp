@@ -54,6 +54,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // STATE
   let patients = [];
+  let relatoriosSet = new Set(); // patient_ids com relatório salvo
   let currentSort = { column: 'dataUltimaVisita', dir: 'desc' };
   let isProcessing = false;
 
@@ -314,8 +315,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       .from('historico')
       .select('id, patient_id, data, medico, visitas');
 
+    const { data: relData } = await supabaseClient
+      .from('relatorios')
+      .select('patient_id');
+
     if (errPat) { handleSupabaseError(errPat, 'carregar os dados'); return; }
     if (errHist) { handleSupabaseError(errHist, 'carregar os dados'); return; }
+
+    relatoriosSet = new Set((relData || []).map(r => r.patient_id));
 
     const historicoMap = new Map();
     if (histData) {
@@ -447,7 +454,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
       if (errHistInsert) handleSupabaseError(errHistInsert, 'salvar histórico');
     }
-    return { success: true };
+    return { success: true, patientId: newPat?.id };
   }
 
   async function addVisitToExistingPatient({ selectedId, hospital, internacao, ehAlta, dataVisita, numeroVisitas, medico }) {
@@ -487,7 +494,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     await recalcPatientDates(p.id);
-    return { success: true };
+    return { success: true, patientId: p.id };
   }
 
   function setupForm() {
@@ -545,6 +552,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           renderPrevDayTable();
           renderPatientsTable();
           renderCalendar();
+
+          if (ehAlta && result.patientId) {
+            await offerRelatorioAposAlta(result.patientId);
+          }
         }
       } finally {
         isProcessing = false;
@@ -800,10 +811,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     emptyPatients.style.display = 'none';
     patientsTableBody.parentElement.style.display = 'table';
 
-    const labels = ['Nome', 'Internação', 'Hospital', 'Status', '1ª Aval.', 'Última', 'Dias', ''];
+    const labels = ['Nome', 'Internação', 'Hospital', 'Status', 'Relatório', ''];
 
     filtered.forEach(p => {
-      const dias = diasDeInternacao(p.dataPrimeiraAvaliacao, p.dataUltimaVisita);
+      const temRelatorio = relatoriosSet.has(p.id);
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${esc(p.pacienteNome)}</td>
@@ -814,9 +825,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ${p.isInternado ? STATUS.INTERNADO : STATUS.ALTA}
           </span>
         </td>
-        <td>${formatDateBR(p.dataPrimeiraAvaliacao)}</td>
-        <td>${formatDateBR(p.dataUltimaVisita)}</td>
-        <td>${dias}</td>
+        <td style="text-align:center; font-size:1.1rem; color:${temRelatorio ? '#2e7d32' : '#c62828'};">${temRelatorio ? '✓' : '✗'}</td>
         <td class="col-actions">
 <button class="btn-action" title="Relatório de Internação" data-action="view-relatorio" data-patient-id="${escAttr(p.id)}">📋</button>
 <button class="btn-action" title="Editar Nome e Hospital" data-action="edit-patient" data-patient-id="${escAttr(p.id)}">✏️</button>
@@ -858,6 +867,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+
+  async function offerRelatorioAposAlta(patientId) {
+    if (await showConfirm('Deseja preencher o relatório de alta agora?', 'Relatório de Alta')) {
+      await openRelatorioModal(patientId);
+    }
+  }
 
   function generateReportText(p) {
     const HOSPITAL_NAMES = {
@@ -927,6 +942,8 @@ São Paulo, ${dataExtenso}`;
                { onConflict: 'patient_id' });
 
     if (error) { handleSupabaseError(error, 'salvar relatório'); return; }
+    relatoriosSet.add(patientId);
+    renderPatientsTable();
     showToast('Relatório salvo!');
   }
 
@@ -990,11 +1007,17 @@ São Paulo, ${dataExtenso}`;
             await fetchAllData();
             renderPatientsTable();
             showToast('Paciente atualizado!');
+
+            const virandoAlta = ehAlta && p.statusManual !== STATUS.ALTA;
+            editModal.classList.remove('active');
+            currentEditingPatientId = null;
+            if (virandoAlta) await offerRelatorioAposAlta(p.id);
           } finally {
             isProcessing = false;
             btnSaveEdit.textContent = 'Salvar';
             btnSaveEdit.disabled = false;
           }
+          return;
         } else {
           alert("O nome do paciente não pode ficar vazio.");
           return;

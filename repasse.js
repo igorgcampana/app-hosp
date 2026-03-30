@@ -519,7 +519,7 @@ function renderRepasseEntrada() {
         <td data-label="Status" class="financeiro-only">
           <select class="rep-status" data-idx="${idx}">${statusSelect}</select>
         </td>
-        <td data-label="Valor da Visita" class="financeiro-only" style="text-align:right; white-space:nowrap;">
+        <td data-label="Valor Esperado" class="financeiro-only" style="text-align:right; white-space:nowrap;">
           ${temValorVisita ? `<span style="font-size:0.85rem;">${formatBRL(valorEsperado)}</span><br><small style="color:var(--color-text-secondary);">${qtdVisitas}× ${formatBRL(valorVisita)}</small>` : '<span style="color:var(--color-text-secondary);">—</span>'}
         </td>
         <td data-label="Valor Recebido" class="financeiro-only">

@@ -981,6 +981,61 @@ tbody tr:hover {
   opacity: 0.4;
 }
 
+/* Sub-linha de detalhes (expand) */
+#repasse-pacientes-table tr.rep-detail-row > td {
+  background: #f7fafa;
+  border-top: none;
+  padding: 0;
+}
+
+.rep-detail-inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 0.75rem 1rem 0.75rem 2rem;
+  align-items: flex-end;
+  border-left: 3px solid var(--color-primary);
+}
+
+.rep-detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rep-detail-field label {
+  font-family: var(--font-title);
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.rep-detail-field input {
+  width: 120px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.85rem;
+}
+
+.rep-detail-result {
+  justify-content: flex-end;
+}
+
+.rep-detail-result span {
+  font-family: var(--font-title);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  padding-bottom: 0.35rem;
+}
+
+/* Campo valor recebido inconsistente com valor esperado */
+input.rep-valor-inconsistente {
+  border-color: #d9534f !important;
+  background: #fff5f5 !important;
+  color: #d9534f !important;
+}
+
 /* Valor total input */
 .repasse-valor-total {
   text-align: center;

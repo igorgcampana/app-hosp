@@ -4,6 +4,7 @@ let repasseFatura = null;
 let repassePacientes = [];
 let historicoMes = [];
 let _saveTimer = null;
+let _expandedRows = new Set();
 
 // === HELPERS ===
 function getSelectedMesAno() {
@@ -25,6 +26,14 @@ function parseBRL(str) {
     .replace(/\./g, '')
     .replace(',', '.');
   return Number(cleaned) || 0;
+}
+
+function calcQtdVisitas(inicio, fim) {
+  if (!inicio) return 0;
+  const d1 = new Date(inicio + 'T00:00:00');
+  const d2 = fim ? new Date(fim + 'T00:00:00') : new Date();
+  const diff = Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+  return Math.max(1, diff);
 }
 
 function getNomeDisplay(pac) {
@@ -211,6 +220,9 @@ function prePopularPacientes(mes, ano) {
     hospital: p.hospital,
     status_pagamento: null,
     valor_recebido: null,
+    valor_previsto: null,
+    valor_visita: null,
+    desconto_paciente: null,
     incluido: true,
     _nome_display: p.pacienteNome
   }));
@@ -479,10 +491,24 @@ function renderRepasseEntrada() {
     ).join('');
 
     const isExcluido = !pac.incluido;
+    const expanded = _expandedRows.has(idx);
+
+    // Cálculos de consistência
+    const qtdVisitas = calcQtdVisitas(pac.periodo_inicio, pac.periodo_fim);
+    const valorVisita = Number(pac.valor_visita) || 0;
+    const descontoPac = Number(pac.desconto_paciente) || 0;
+    const valorEsperado = valorVisita * qtdVisitas;
+    const valorEsperadoLiq = valorEsperado - descontoPac;
+    const valorRecebido = Number(pac.valor_recebido) || 0;
+    const temValorVisita = valorVisita > 0;
+    const inconsistente = temValorVisita && valorRecebido > 0 && Math.abs(valorRecebido - valorEsperadoLiq) > 0.01;
 
     return `
       <tr class="${isExcluido ? 'paciente-excluido' : ''}" data-idx="${idx}">
-        <td data-label="Paciente">${nome}</td>
+        <td data-label="Paciente" style="white-space:nowrap;">
+          <button class="rep-expand-btn" data-idx="${idx}" title="Detalhes"
+            style="background:none;border:none;cursor:pointer;font-size:0.7rem;padding:0 4px 0 0;color:var(--color-text-secondary);vertical-align:middle;">${expanded ? '▼' : '▶'}</button>${nome}
+        </td>
         <td data-label="Início">
           <input type="date" class="rep-periodo-inicio" value="${pac.periodo_inicio || ''}" data-idx="${idx}">
         </td>
@@ -493,9 +519,12 @@ function renderRepasseEntrada() {
         <td data-label="Status" class="financeiro-only">
           <select class="rep-status" data-idx="${idx}">${statusSelect}</select>
         </td>
+        <td data-label="Valor da Visita" class="financeiro-only" style="text-align:right; white-space:nowrap;">
+          ${temValorVisita ? `<span style="font-size:0.85rem;">${formatBRL(valorEsperado)}</span><br><small style="color:var(--color-text-secondary);">${qtdVisitas}× ${formatBRL(valorVisita)}</small>` : '<span style="color:var(--color-text-secondary);">—</span>'}
+        </td>
         <td data-label="Valor Recebido" class="financeiro-only">
           <div style="display:flex; flex-direction:column; gap:4px;">
-            <input type="text" class="rep-valor" inputmode="decimal" data-idx="${idx}"
+            <input type="text" class="rep-valor${inconsistente ? ' rep-valor-inconsistente' : ''}" inputmode="decimal" data-idx="${idx}"
               value="${pac.valor_recebido != null && pac.valor_recebido > 0 ? formatBRL(pac.valor_recebido) : ''}"
               placeholder="R$ recebido" style="width:130px;">
             ${pac.status_pagamento === 'PARCIAL' ? `
@@ -511,6 +540,34 @@ function renderRepasseEntrada() {
               style="width:16px; height:16px; cursor:pointer; margin:0;">
             <button class="btn-action manager-only rep-delete" data-idx="${idx}" title="Remover"
               style="color:#d9534f; font-size:0.85rem; line-height:1; padding:0; margin:0;">✕</button>
+          </div>
+        </td>
+      </tr>
+      <tr class="rep-detail-row" data-idx="${idx}" style="${expanded ? '' : 'display:none'}">
+        <td colspan="8" class="financeiro-only" style="padding:0;">
+          <div class="rep-detail-inner">
+            <div class="rep-detail-field">
+              <label>Valor da visita</label>
+              <input type="text" class="rep-valor-visita" inputmode="decimal" data-idx="${idx}"
+                value="${pac.valor_visita != null && pac.valor_visita > 0 ? formatBRL(pac.valor_visita) : ''}"
+                placeholder="R$ / visita">
+            </div>
+            <div class="rep-detail-field">
+              <label>Qtd. visitas</label>
+              <input type="text" readonly value="${qtdVisitas > 0 ? qtdVisitas : '—'}"
+                style="background:#f0f4f4; cursor:default; width:80px;" title="Calculado automaticamente pelo período de internação">
+            </div>
+            <div class="rep-detail-field">
+              <label>Desconto</label>
+              <input type="text" class="rep-desconto-paciente" inputmode="decimal" data-idx="${idx}"
+                value="${pac.desconto_paciente != null && pac.desconto_paciente > 0 ? formatBRL(pac.desconto_paciente) : ''}"
+                placeholder="R$ desconto">
+            </div>
+            ${temValorVisita ? `
+            <div class="rep-detail-field rep-detail-result">
+              <label>Esperado (líquido)</label>
+              <span>${formatBRL(valorEsperadoLiq)}</span>
+            </div>` : ''}
           </div>
         </td>
       </tr>
@@ -1068,9 +1125,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (e.target.classList.contains('rep-periodo-inicio')) {
         repassePacientes[idx].periodo_inicio = e.target.value;
+        // Recalcula qtd_visitas e atualiza linha
+        renderRepasseEntrada();
         debounceSave();
       } else if (e.target.classList.contains('rep-periodo-fim')) {
         repassePacientes[idx].periodo_fim = e.target.value || null;
+        renderRepasseEntrada();
         debounceSave();
       } else if (e.target.classList.contains('rep-status')) {
         repassePacientes[idx].status_pagamento = e.target.value || null;
@@ -1093,23 +1153,69 @@ document.addEventListener('DOMContentLoaded', () => {
       if (isNaN(idx) || !repassePacientes[idx]) return;
 
       if (e.target.classList.contains('rep-valor')) {
-        repassePacientes[idx].valor_recebido = parseBRL(e.target.value);
+        const val = parseBRL(e.target.value);
+        repassePacientes[idx].valor_recebido = val;
+        // Auto-PARCIAL: se valor recebido < valor esperado (valor_visita × qtd_visitas)
+        const pac = repassePacientes[idx];
+        const valorVisita = Number(pac.valor_visita) || 0;
+        const qtdVisitas = calcQtdVisitas(pac.periodo_inicio, pac.periodo_fim);
+        const valorEsperado = valorVisita * qtdVisitas;
+        if (valorVisita > 0 && val > 0 && val < valorEsperado) {
+          repassePacientes[idx].status_pagamento = 'PARCIAL';
+        }
+        // Atualiza classe de inconsistência no próprio input sem re-renderizar tudo
+        const descontoPac = Number(pac.desconto_paciente) || 0;
+        const valorEsperadoLiq = valorEsperado - descontoPac;
+        const inconsistente = valorVisita > 0 && val > 0 && Math.abs(val - valorEsperadoLiq) > 0.01;
+        e.target.classList.toggle('rep-valor-inconsistente', inconsistente);
+        // Re-renderiza se mudou o status para PARCIAL
+        if (valorVisita > 0 && val > 0 && val < valorEsperado) {
+          renderRepasseEntrada();
+        }
         recalcularTotal();
         atualizarResumo();
         debounceSave();
       } else if (e.target.classList.contains('rep-valor-previsto')) {
         repassePacientes[idx].valor_previsto = parseBRL(e.target.value);
         debounceSave();
+      } else if (e.target.classList.contains('rep-valor-visita')) {
+        repassePacientes[idx].valor_visita = parseBRL(e.target.value);
+        debounceSave();
+      } else if (e.target.classList.contains('rep-desconto-paciente')) {
+        repassePacientes[idx].desconto_paciente = parseBRL(e.target.value);
+        debounceSave();
       }
     });
 
-    // Formatar valores ao sair do campo
+    // Formatar valores ao sair do campo + atualizar display de consistência
     tbody.addEventListener('blur', (e) => {
-      if (e.target.classList.contains('rep-valor') || e.target.classList.contains('rep-valor-previsto')) {
+      const formatClasses = ['rep-valor', 'rep-valor-previsto', 'rep-valor-visita', 'rep-desconto-paciente'];
+      if (formatClasses.some(c => e.target.classList.contains(c))) {
         const val = parseBRL(e.target.value);
         if (val > 0) e.target.value = formatBRL(val);
+        // Após blur, re-renderiza a linha para atualizar a coluna "Valor da Visita" e indicador
+        const idx = Number(e.target.dataset.idx);
+        if (!isNaN(idx) && repassePacientes[idx]) {
+          renderRepasseEntrada();
+        }
       }
     }, true);
+
+    // Expand/collapse sub-row
+    tbody.addEventListener('click', (e) => {
+      const expandBtn = e.target.closest('.rep-expand-btn');
+      if (expandBtn) {
+        const idx = Number(expandBtn.dataset.idx);
+        if (isNaN(idx)) return;
+        if (_expandedRows.has(idx)) {
+          _expandedRows.delete(idx);
+        } else {
+          _expandedRows.add(idx);
+        }
+        renderRepasseEntrada();
+        return;
+      }
+    });
 
     // T12 — Deletar paciente
     tbody.addEventListener('click', async (e) => {

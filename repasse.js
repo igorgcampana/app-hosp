@@ -42,6 +42,7 @@ async function initRepasse() {
   await loadRepasseConfig();
   populateRepasseSelectors();
   await loadRepasseMes();
+  await loadHistoricoRelatorios();
 }
 
 function populateRepasseSelectors() {
@@ -168,6 +169,7 @@ async function saveFatura(mes, ano, valorTotal) {
     return null;
   }
   repasseFatura = data;
+  loadHistoricoRelatorios();
   return data;
 }
 
@@ -333,6 +335,59 @@ function calcularRepasse(config, fatura, pacientes, historico) {
     total, impostos, adm, restante, samira, divisaoEquipe,
     totalVisitasEquipe, valorPorVisita, repassePorMedico
   };
+}
+
+// === HISTÓRICO DE RELATÓRIOS SALVOS ===
+async function loadHistoricoRelatorios() {
+  const { data, error } = await supabaseClient
+    .from('repasse_fatura')
+    .select('id, mes, ano, valor_total_recebido, updated_at')
+    .order('ano', { ascending: false })
+    .order('mes', { ascending: false });
+
+  if (error) { console.error('Erro ao carregar histórico:', error); return; }
+
+  const lista = document.getElementById('repasse-historico-lista');
+  if (!lista) return;
+
+  if (!data || data.length === 0) {
+    lista.innerHTML = '<p class="empty-state">Nenhum relatório salvo ainda.</p>';
+    return;
+  }
+
+  const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+    'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+  const { mes: mesAtual, ano: anoAtual } = getSelectedMesAno();
+
+  lista.innerHTML = data.map(f => {
+    const atualizado = new Date(f.updated_at).toLocaleDateString('pt-BR');
+    const isCurrent = f.mes === mesAtual && f.ano === anoAtual;
+    return `
+      <div class="repasse-historico-item ${isCurrent ? 'ativo' : ''}">
+        <div>
+          <strong>${meses[f.mes - 1]} / ${f.ano}</strong>
+          <span class="repasse-historico-meta">Atualizado em ${atualizado} · Total: ${formatBRL(f.valor_total_recebido)}</span>
+        </div>
+        <button class="btn-secondary btn-historico-carregar" data-mes="${f.mes}" data-ano="${f.ano}"
+          style="font-size:0.8rem; padding:0.35rem 0.9rem; white-space:nowrap;">
+          ${isCurrent ? '✓ Carregado' : 'Carregar'}
+        </button>
+      </div>
+    `;
+  }).join('');
+
+  lista.querySelectorAll('.btn-historico-carregar').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const mes = Number(btn.dataset.mes);
+      const ano = Number(btn.dataset.ano);
+      document.getElementById('repasse-mes').value = mes;
+      document.getElementById('repasse-ano').value = ano;
+      await loadRepasseMes();
+      await loadHistoricoRelatorios();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  });
 }
 
 // === HISTORICO DO MÊS ===

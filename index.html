@@ -340,6 +340,15 @@
           </div>
           <button id="btn-add-paciente-repasse" class="btn-secondary manager-only" style="margin-top:1rem;">+ Adicionar paciente</button>
         </div>
+
+        <!-- Pagamentos pendentes de meses anteriores -->
+        <div id="pendentes-card" class="card manager-only" style="display:none;">
+          <h3>Pagamentos Pendentes de Meses Anteriores</h3>
+          <p style="font-size:0.85rem; color:var(--color-text-secondary); margin-bottom:1rem; font-family:var(--font-body);">
+            Pacientes de meses anteriores com pagamento pendente ou parcial. Clique em "+ Incluir" para adicionar ao mês atual.
+          </p>
+          <div id="pendentes-lista"></div>
+        </div>
       </div>
 
       <div class="repasse-relatorio" style="display:none;">

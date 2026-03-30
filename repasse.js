@@ -98,6 +98,7 @@ async function loadRepasseMes() {
   await loadHistoricoMes(mes, ano);
   atualizarResumo();
   renderRepasseEntrada();
+  await loadPendentesMesesAnteriores(mes, ano);
 }
 
 // === CONFIG ===
@@ -945,6 +946,94 @@ async function downloadPDFMedico(medico, btn) {
   const meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
   const nomeArquivo = `repasse-${medico.toLowerCase().replace(/\s+/g, '-')}-${meses[mes - 1]}-${ano}.pdf`;
   await gerarPDF([pagMedico], nomeArquivo, btn);
+}
+
+// === PAGAMENTOS PENDENTES DE MESES ANTERIORES ===
+async function loadPendentesMesesAnteriores(mesAtual, anoAtual) {
+  const card = document.getElementById('pendentes-card');
+  const lista = document.getElementById('pendentes-lista');
+  if (!card || !lista) return;
+
+  // Buscar faturas de meses anteriores
+  const { data: faturas } = await supabaseClient
+    .from('repasse_fatura')
+    .select('id, mes, ano')
+    .order('ano', { ascending: false })
+    .order('mes', { ascending: false });
+
+  if (!faturas || faturas.length === 0) { card.style.display = 'none'; return; }
+
+  // Filtrar apenas meses anteriores ao atual
+  const faturasAnteriores = faturas.filter(f =>
+    f.ano < anoAtual || (f.ano === anoAtual && f.mes < mesAtual)
+  );
+  if (faturasAnteriores.length === 0) { card.style.display = 'none'; return; }
+
+  // Buscar pacientes pendentes (status NÃO ou null) dessas faturas
+  const faturasIds = faturasAnteriores.map(f => f.id);
+  const { data: pendentes } = await supabaseClient
+    .from('repasse_paciente')
+    .select('*, repasse_fatura(mes, ano)')
+    .in('fatura_id', faturasIds)
+    .or('status_pagamento.is.null,status_pagamento.eq.NÃO,status_pagamento.eq.PARCIAL')
+    .eq('incluido', true);
+
+  if (!pendentes || pendentes.length === 0) { card.style.display = 'none'; return; }
+
+  // Filtrar pacientes que já estão no mês atual
+  const jaIncluidos = new Set(repassePacientes.map(p => p.patient_id).filter(Boolean));
+  const filtrados = pendentes.filter(p => !p.patient_id || !jaIncluidos.has(p.patient_id));
+
+  if (filtrados.length === 0) { card.style.display = 'none'; return; }
+
+  const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+  lista.innerHTML = filtrados.map((p, idx) => {
+    const nome = p.nome_override ||
+      (window.patients || []).find(pt => pt.id === p.patient_id)?.pacienteNome || '(paciente)';
+    const mesRef = p.repasse_fatura ? `${meses[p.repasse_fatura.mes - 1]}/${p.repasse_fatura.ano}` : '—';
+    const statusLabel = p.status_pagamento === 'PARCIAL' ? ' · Parcial' : '';
+    return `
+      <div class="pendente-item" data-idx="${idx}">
+        <div>
+          <strong>${nome}</strong>
+          <span class="repasse-historico-meta">Ref: ${mesRef}${statusLabel} · ${p.hospital || '—'}</span>
+        </div>
+        <button class="btn-secondary btn-incluir-pendente" data-idx="${idx}"
+          style="font-size:0.8rem; padding:0.35rem 0.9rem; white-space:nowrap;">+ Incluir</button>
+      </div>
+    `;
+  }).join('');
+
+  card.style.display = '';
+
+  lista.querySelectorAll('.btn-incluir-pendente').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = filtrados[Number(btn.dataset.idx)];
+      const nome = p.nome_override ||
+        (window.patients || []).find(pt => pt.id === p.patient_id)?.pacienteNome || '(paciente)';
+
+      repassePacientes.push({
+        patient_id: p.patient_id,
+        nome_override: p.nome_override,
+        periodo_inicio: p.periodo_inicio,
+        periodo_fim: p.periodo_fim,
+        hospital: p.hospital,
+        status_pagamento: null,
+        valor_recebido: p.status_pagamento === 'PARCIAL' ? p.valor_recebido : null,
+        incluido: true,
+        _nome_display: nome,
+        _ref_mes_anterior: true
+      });
+
+      renderRepasseEntrada();
+      debounceSave();
+
+      // Remover da lista de pendentes
+      btn.closest('.pendente-item').remove();
+      if (lista.querySelectorAll('.pendente-item').length === 0) card.style.display = 'none';
+    });
+  });
 }
 
 // === EVENT LISTENERS ===

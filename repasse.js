@@ -72,25 +72,25 @@ async function loadRepasseMes() {
 
   if (fatura) {
     await loadPacientesFatura(fatura.id);
-    // Resolver nomes dos pacientes vinculados
     repassePacientes.forEach(pac => {
       if (pac.patient_id && window.patients) {
         const p = window.patients.find(pt => pt.id === pac.patient_id);
         if (p) pac._nome_display = p.pacienteNome;
       }
     });
-    // Preencher valor total no input
     const inputValor = document.getElementById('repasse-valor-total');
     if (inputValor) inputValor.value = fatura.valor_total_recebido > 0
       ? formatBRL(fatura.valor_total_recebido) : '';
   } else {
-    // T09 — Pré-popular pacientes
     repassePacientes = prePopularPacientes(mes, ano);
     repasseFatura = null;
     const inputValor = document.getElementById('repasse-valor-total');
     if (inputValor) inputValor.value = '';
   }
 
+  // Carregar histórico para o resumo
+  await loadHistoricoMes(mes, ano);
+  atualizarResumo();
   renderRepasseEntrada();
 }
 
@@ -240,6 +240,32 @@ async function deletePaciente(id) {
     return false;
   }
   return true;
+}
+
+// === RESUMO DO HEADER ===
+function atualizarResumo() {
+  const resumo = document.getElementById('repasse-resumo');
+  if (!resumo || !repasseConfig) return;
+
+  const valorTotal = parseBRL(document.getElementById('repasse-valor-total')?.value);
+  const totalVisitas = historicoMes.reduce((s, h) => s + (h.visitas || 0), 0);
+
+  if (!valorTotal || valorTotal <= 0 || totalVisitas === 0) {
+    resumo.style.display = 'none';
+    return;
+  }
+
+  const impostos = valorTotal * (Number(repasseConfig.pct_impostos) / 100);
+  const adm = valorTotal * (Number(repasseConfig.pct_adm) / 100);
+  const restante = valorTotal - impostos - adm;
+  const samira = restante * (Number(repasseConfig.pct_samira) / 100);
+  const divisaoEquipe = valorTotal - impostos - adm - samira;
+  const valorPorVisita = divisaoEquipe / totalVisitas;
+
+  document.getElementById('resumo-total-visitas').textContent = totalVisitas;
+  document.getElementById('resumo-valor-visita').textContent = formatBRL(valorPorVisita);
+  document.getElementById('resumo-divisao-equipe').textContent = formatBRL(divisaoEquipe);
+  resumo.style.display = 'flex';
 }
 
 // === T11 — Auto-save com debounce ===
@@ -717,11 +743,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // Valor total — auto-save
   const inputValorTotal = document.getElementById('repasse-valor-total');
   if (inputValorTotal) {
-    inputValorTotal.addEventListener('input', debounceSave);
-    // Formatar ao sair do campo
+    inputValorTotal.addEventListener('input', () => {
+      debounceSave();
+      atualizarResumo();
+    });
     inputValorTotal.addEventListener('blur', () => {
       const val = parseBRL(inputValorTotal.value);
       if (val > 0) inputValorTotal.value = formatBRL(val);
+      atualizarResumo();
     });
   }
 

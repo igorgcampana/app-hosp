@@ -174,6 +174,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
   }
+  window.showToast = showToast;
 
   function showConfirm(message, title = 'Confirmação') {
     return new Promise((resolve) => {
@@ -203,6 +204,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       modal.addEventListener('click', onBackdrop);
     });
   }
+  window.showConfirm = showConfirm;
 
   function handleSupabaseError(error, context = '') {
     console.error(`[AppHosp] ${context}:`, error);

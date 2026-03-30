@@ -341,7 +341,7 @@ function calcularRepasse(config, fatura, pacientes, historico) {
 async function loadHistoricoRelatorios() {
   const { data, error } = await supabaseClient
     .from('repasse_fatura')
-    .select('id, mes, ano, valor_total_recebido, updated_at')
+    .select('id, mes, ano, valor_total_recebido')
     .order('ano', { ascending: false })
     .order('mes', { ascending: false });
 
@@ -355,39 +355,81 @@ async function loadHistoricoRelatorios() {
     return;
   }
 
-  const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
-    'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
-  const { mes: mesAtual, ano: anoAtual } = getSelectedMesAno();
+  lista.innerHTML = data.map(f => `
+    <div class="repasse-historico-item">
+      <span class="repasse-historico-periodo">${meses[f.mes - 1]} / ${f.ano}</span>
+      <button class="btn-secondary btn-historico-pdf" data-mes="${f.mes}" data-ano="${f.ano}"
+        data-label="↓ Baixar PDF" style="font-size:0.8rem; padding:0.35rem 0.9rem; white-space:nowrap;">
+        ↓ Baixar PDF
+      </button>
+    </div>
+  `).join('');
 
-  lista.innerHTML = data.map(f => {
-    const atualizado = new Date(f.updated_at).toLocaleDateString('pt-BR');
-    const isCurrent = f.mes === mesAtual && f.ano === anoAtual;
-    return `
-      <div class="repasse-historico-item ${isCurrent ? 'ativo' : ''}">
-        <div>
-          <strong>${meses[f.mes - 1]} / ${f.ano}</strong>
-          <span class="repasse-historico-meta">Atualizado em ${atualizado} · Total: ${formatBRL(f.valor_total_recebido)}</span>
-        </div>
-        <button class="btn-secondary btn-historico-carregar" data-mes="${f.mes}" data-ano="${f.ano}"
-          style="font-size:0.8rem; padding:0.35rem 0.9rem; white-space:nowrap;">
-          ${isCurrent ? '✓ Carregado' : 'Carregar'}
-        </button>
-      </div>
-    `;
-  }).join('');
-
-  lista.querySelectorAll('.btn-historico-carregar').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const mes = Number(btn.dataset.mes);
-      const ano = Number(btn.dataset.ano);
-      document.getElementById('repasse-mes').value = mes;
-      document.getElementById('repasse-ano').value = ano;
-      await loadRepasseMes();
-      await loadHistoricoRelatorios();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
+  lista.querySelectorAll('.btn-historico-pdf').forEach(btn => {
+    btn.addEventListener('click', () => baixarPDFHistorico(Number(btn.dataset.mes), Number(btn.dataset.ano), btn));
   });
+}
+
+async function baixarPDFHistorico(mes, ano, btn) {
+  if (btn) { btn.textContent = 'Gerando...'; btn.disabled = true; }
+
+  try {
+    // Carregar dados do mês sem alterar o estado atual da tela
+    const { data: fatura } = await supabaseClient
+      .from('repasse_fatura').select('*').eq('mes', mes).eq('ano', ano).single();
+    if (!fatura) { showToast('Dados não encontrados'); return; }
+
+    const { data: pacientes } = await supabaseClient
+      .from('repasse_paciente').select('*').eq('fatura_id', fatura.id).order('periodo_inicio');
+
+    const primeiroDia = `${ano}-${String(mes).padStart(2,'0')}-01`;
+    const ultimoDia = new Date(ano, mes, 0);
+    const ultimoDiaStr = `${ano}-${String(mes).padStart(2,'0')}-${String(ultimoDia.getDate()).padStart(2,'0')}`;
+    const { data: historico } = await supabaseClient
+      .from('historico').select('id, patient_id, data, medico, visitas')
+      .gte('data', primeiroDia).lte('data', ultimoDiaStr);
+
+    // Resolver nomes dos pacientes
+    const pacientesComNome = (pacientes || []).map(p => ({
+      ...p,
+      _nome_display: p.nome_override || (window.patients || []).find(pt => pt.id === p.patient_id)?.pacienteNome || '(paciente)'
+    }));
+
+    const dados = calcularRepasse(repasseConfig, fatura, pacientesComNome, historico || []);
+    const pacientesRelatorio = pacientesComNome.filter(p => p.incluido && p.status_pagamento !== 'NÃO');
+
+    const doctorsList = window.DOCTORS || [];
+    const medicosComVisitas = doctorsList.filter(d => (historico || []).some(h => h.medico === d));
+
+    // Renderizar em container oculto temporário
+    const tmp = document.createElement('div');
+    tmp.style.cssText = 'position:fixed; left:-9999px; top:0; width:900px; background:#fff;';
+    document.body.appendChild(tmp);
+
+    // Salvar estado global e substituir temporariamente
+    const _cfg = repasseConfig, _hist = historicoMes;
+    historicoMes = historico || [];
+
+    tmp.innerHTML = renderPag1(dados, pacientesRelatorio) +
+      medicosComVisitas.map(m => renderPag2(m, dados)).join('');
+
+    repasseConfig = _cfg;
+    historicoMes = _hist;
+
+    const pages = [...tmp.querySelectorAll('.repasse-pag1, .repasse-pag2')];
+    const mesesNome = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+    await gerarPDF(pages, `repasse-${mesesNome[mes-1]}-${ano}.pdf`, null);
+
+    document.body.removeChild(tmp);
+    showToast('PDF baixado');
+  } catch (err) {
+    console.error('Erro ao gerar PDF do histórico:', err);
+    showToast('Erro ao gerar PDF');
+  } finally {
+    if (btn) { btn.textContent = '↓ Baixar PDF'; btn.disabled = false; }
+  }
 }
 
 // === HISTORICO DO MÊS ===

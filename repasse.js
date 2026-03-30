@@ -1,0 +1,847 @@
+// === REPASSE STATE ===
+let repasseConfig = null;
+let repasseFatura = null;
+let repassePacientes = [];
+let historicoMes = [];
+let _saveTimer = null;
+
+// === HELPERS ===
+function getSelectedMesAno() {
+  const mes = Number(document.getElementById('repasse-mes')?.value);
+  const ano = Number(document.getElementById('repasse-ano')?.value);
+  return { mes, ano };
+}
+
+function formatBRL(valor) {
+  return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function parseBRL(str) {
+  if (typeof str === 'number') return str;
+  if (!str) return 0;
+  return Number(str.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+}
+
+function getNomeDisplay(pac) {
+  if (pac.nome_override) return pac.nome_override;
+  if (pac._nome_display) return pac._nome_display;
+  if (pac.patient_id && window.patients) {
+    const p = window.patients.find(pt => pt.id === pac.patient_id);
+    if (p) return p.pacienteNome;
+  }
+  return '(sem nome)';
+}
+
+// === INIT ===
+async function initRepasse() {
+  await loadRepasseConfig();
+  populateRepasseSelectors();
+  await loadRepasseMes();
+}
+
+function populateRepasseSelectors() {
+  const mesSelect = document.getElementById('repasse-mes');
+  const anoSelect = document.getElementById('repasse-ano');
+  if (!mesSelect || !anoSelect) return;
+
+  const meses = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
+
+  mesSelect.innerHTML = meses.map((m, i) =>
+    `<option value="${i + 1}">${m}</option>`
+  ).join('');
+
+  const anoAtual = new Date().getFullYear();
+  anoSelect.innerHTML = '';
+  for (let a = anoAtual - 2; a <= anoAtual + 1; a++) {
+    anoSelect.innerHTML += `<option value="${a}">${a}</option>`;
+  }
+
+  mesSelect.value = new Date().getMonth() + 1;
+  anoSelect.value = anoAtual;
+}
+
+// T08 — Carregamento ao mudar mês/ano
+async function loadRepasseMes() {
+  const { mes, ano } = getSelectedMesAno();
+  if (!mes || !ano) return;
+
+  const fatura = await loadOrCreateFatura(mes, ano);
+
+  if (fatura) {
+    await loadPacientesFatura(fatura.id);
+    // Resolver nomes dos pacientes vinculados
+    repassePacientes.forEach(pac => {
+      if (pac.patient_id && window.patients) {
+        const p = window.patients.find(pt => pt.id === pac.patient_id);
+        if (p) pac._nome_display = p.pacienteNome;
+      }
+    });
+    // Preencher valor total no input
+    const inputValor = document.getElementById('repasse-valor-total');
+    if (inputValor) inputValor.value = fatura.valor_total_recebido > 0
+      ? formatBRL(fatura.valor_total_recebido) : '';
+  } else {
+    // T09 — Pré-popular pacientes
+    repassePacientes = prePopularPacientes(mes, ano);
+    repasseFatura = null;
+    const inputValor = document.getElementById('repasse-valor-total');
+    if (inputValor) inputValor.value = '';
+  }
+
+  renderRepasseEntrada();
+}
+
+// === CONFIG ===
+async function loadRepasseConfig() {
+  const { data, error } = await supabaseClient
+    .from('repasse_config')
+    .select('*')
+    .eq('id', 1)
+    .single();
+
+  if (error) {
+    console.error('Erro ao carregar repasse_config:', error);
+    return;
+  }
+  repasseConfig = data;
+}
+
+async function saveRepasseConfig(updates) {
+  const { data, error } = await supabaseClient
+    .from('repasse_config')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', 1)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Erro ao salvar repasse_config:', error);
+    showToast('Erro ao salvar configurações');
+    return null;
+  }
+  repasseConfig = data;
+  showToast('Configurações salvas');
+  return data;
+}
+
+// === FATURA ===
+async function loadOrCreateFatura(mes, ano) {
+  const { data, error } = await supabaseClient
+    .from('repasse_fatura')
+    .select('*')
+    .eq('mes', mes)
+    .eq('ano', ano)
+    .single();
+
+  if (error && error.code !== 'PGRST116') {
+    console.error('Erro ao carregar fatura:', error);
+    return null;
+  }
+
+  repasseFatura = data || null;
+  return repasseFatura;
+}
+
+async function saveFatura(mes, ano, valorTotal) {
+  const { data, error } = await supabaseClient
+    .from('repasse_fatura')
+    .upsert({
+      ...(repasseFatura?.id ? { id: repasseFatura.id } : {}),
+      mes,
+      ano,
+      valor_total_recebido: valorTotal,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'mes,ano' })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Erro ao salvar fatura:', error);
+    return null;
+  }
+  repasseFatura = data;
+  return data;
+}
+
+// === PACIENTES ===
+async function loadPacientesFatura(faturaId) {
+  const { data, error } = await supabaseClient
+    .from('repasse_paciente')
+    .select('*')
+    .eq('fatura_id', faturaId)
+    .order('periodo_inicio');
+
+  if (error) {
+    console.error('Erro ao carregar pacientes do repasse:', error);
+    return [];
+  }
+  repassePacientes = data || [];
+  return repassePacientes;
+}
+
+// T09 — Pré-popular pacientes do mês
+function prePopularPacientes(mes, ano) {
+  const primeiroDia = new Date(ano, mes - 1, 1);
+  const ultimoDia = new Date(ano, mes, 0);
+
+  return (window.patients || []).filter(p => {
+    if (!p.dataPrimeiraAvaliacao) return false;
+    const dataInicio = new Date(p.dataPrimeiraAvaliacao + 'T00:00:00');
+    if (dataInicio > ultimoDia) return false;
+
+    if (p.statusManual === 'Internado') return true;
+
+    if (p.dataUltimaVisita) {
+      const dataFim = new Date(p.dataUltimaVisita + 'T00:00:00');
+      return dataFim >= primeiroDia;
+    }
+    return false;
+  }).map(p => ({
+    patient_id: p.id,
+    nome_override: null,
+    periodo_inicio: p.dataPrimeiraAvaliacao,
+    periodo_fim: p.dataUltimaVisita || null,
+    hospital: p.hospital,
+    status_pagamento: null,
+    valor_recebido: null,
+    incluido: true,
+    _nome_display: p.pacienteNome
+  }));
+}
+
+async function savePaciente(dados) {
+  const { data, error } = await supabaseClient
+    .from('repasse_paciente')
+    .upsert({
+      ...dados,
+      updated_at: new Date().toISOString()
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Erro ao salvar paciente repasse:', error);
+    return null;
+  }
+  return data;
+}
+
+async function deletePaciente(id) {
+  const { error } = await supabaseClient
+    .from('repasse_paciente')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Erro ao deletar paciente repasse:', error);
+    return false;
+  }
+  return true;
+}
+
+// === T11 — Auto-save com debounce ===
+async function saveRepasseData() {
+  const { mes, ano } = getSelectedMesAno();
+  const valorTotal = parseBRL(document.getElementById('repasse-valor-total')?.value);
+
+  // Garantir que a fatura existe
+  const fatura = await saveFatura(mes, ano, valorTotal);
+  if (!fatura) return;
+
+  // Salvar cada paciente
+  for (const pac of repassePacientes) {
+    // Remover props temporários antes de salvar
+    const { _nome_display, _unsaved, ...dadosSalvar } = pac;
+    dadosSalvar.fatura_id = fatura.id;
+    const saved = await savePaciente(dadosSalvar);
+    if (saved) {
+      pac.id = saved.id;
+      pac.fatura_id = saved.fatura_id;
+      delete pac._unsaved;
+    }
+  }
+}
+
+function debounceSave() {
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => saveRepasseData(), 800);
+}
+
+// === CÁLCULO ===
+function calcularRepasse(config, fatura, pacientes, historico) {
+  const total = Number(fatura.valor_total_recebido) || 0;
+  const impostos = total * (Number(config.pct_impostos) / 100);
+  const adm = total * (Number(config.pct_adm) / 100);
+  const restante = total - impostos - adm;
+  const samira = restante * (Number(config.pct_samira) / 100);
+  const divisaoEquipe = total - impostos - adm - samira;
+
+  const totalVisitasEquipe = historico.reduce((s, h) => s + (h.visitas || 0), 0);
+  const valorPorVisita = totalVisitasEquipe > 0 ? divisaoEquipe / totalVisitasEquipe : 0;
+
+  const doctorsList = window.DOCTORS || [];
+  const repassePorMedico = {};
+  doctorsList.forEach(medico => {
+    const visitasMedico = historico
+      .filter(h => h.medico === medico)
+      .reduce((s, h) => s + (h.visitas || 0), 0);
+    const valorBruto = valorPorVisita * visitasMedico;
+    const desconto = (config.descontos_sala && config.descontos_sala[medico]) || 0;
+    repassePorMedico[medico] = {
+      visitasMedico,
+      valorBruto,
+      desconto,
+      valorLiquido: valorBruto - desconto
+    };
+  });
+
+  return {
+    total, impostos, adm, restante, samira, divisaoEquipe,
+    totalVisitasEquipe, valorPorVisita, repassePorMedico
+  };
+}
+
+// === HISTORICO DO MÊS ===
+async function loadHistoricoMes(mes, ano) {
+  const primeiroDia = `${ano}-${String(mes).padStart(2, '0')}-01`;
+  const ultimoDia = new Date(ano, mes, 0);
+  const ultimoDiaStr = `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia.getDate()).padStart(2, '0')}`;
+
+  const { data, error } = await supabaseClient
+    .from('historico')
+    .select('id, patient_id, data, medico, visitas')
+    .gte('data', primeiroDia)
+    .lte('data', ultimoDiaStr);
+
+  if (error) {
+    console.error('Erro ao carregar histórico do mês:', error);
+    return [];
+  }
+  historicoMes = data || [];
+  return historicoMes;
+}
+
+// === T10 — RENDER TABELA DE ENTRADA ===
+function renderRepasseEntrada() {
+  const tbody = document.querySelector('#repasse-pacientes-table tbody');
+  const emptyMsg = document.getElementById('empty-repasse-pacientes');
+  if (!tbody) return;
+
+  if (repassePacientes.length === 0) {
+    tbody.innerHTML = '';
+    if (emptyMsg) emptyMsg.style.display = '';
+    return;
+  }
+  if (emptyMsg) emptyMsg.style.display = 'none';
+
+  tbody.innerHTML = repassePacientes.map((pac, idx) => {
+    const nome = getNomeDisplay(pac);
+    const statusOptions = ['', 'SIM', 'NÃO', 'PARCIAL', 'RETAGUARDA'];
+    const statusSelect = statusOptions.map(s =>
+      `<option value="${s}" ${pac.status_pagamento === s ? 'selected' : ''}>${s || '—'}</option>`
+    ).join('');
+
+    const isExcluido = !pac.incluido;
+
+    return `
+      <tr class="${isExcluido ? 'paciente-excluido' : ''}" data-idx="${idx}">
+        <td data-label="Paciente">${nome}</td>
+        <td data-label="Início">
+          <input type="date" class="rep-periodo-inicio" value="${pac.periodo_inicio || ''}" data-idx="${idx}">
+        </td>
+        <td data-label="Fim">
+          <input type="date" class="rep-periodo-fim" value="${pac.periodo_fim || ''}" data-idx="${idx}">
+        </td>
+        <td data-label="Hospital">${pac.hospital || '—'}</td>
+        <td data-label="Pagou?" class="financeiro-only">
+          <select class="rep-status" data-idx="${idx}">${statusSelect}</select>
+        </td>
+        <td data-label="Valor" class="financeiro-only">
+          <input type="text" class="rep-valor" inputmode="decimal" data-idx="${idx}"
+            value="${pac.valor_recebido != null ? formatBRL(pac.valor_recebido) : ''}"
+            placeholder="R$ 0,00" style="width:110px;">
+        </td>
+        <td data-label="Incluído">
+          <label style="display:flex; align-items:center; gap:4px; margin:0; cursor:pointer;">
+            <input type="checkbox" class="rep-incluido" data-idx="${idx}" ${pac.incluido ? 'checked' : ''}>
+          </label>
+          <button class="btn-action manager-only rep-delete" data-idx="${idx}" title="Remover" style="color:#d9534f; margin-left:4px;">✕</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// === T15 — RENDER PÁG. 1 (FATURA DETALHADA) ===
+function renderPag1(dados, pacientesIncluidos) {
+  const { mes, ano } = getSelectedMesAno();
+  const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+    'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const periodo = `${meses[mes - 1]} / ${ano}`;
+  const emissao = new Date().toLocaleDateString('pt-BR');
+
+  const linhasPacientes = pacientesIncluidos.map(pac => {
+    const nome = getNomeDisplay(pac);
+    const inicio = pac.periodo_inicio ? new Date(pac.periodo_inicio + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+    const fim = pac.periodo_fim ? new Date(pac.periodo_fim + 'T00:00:00').toLocaleDateString('pt-BR') : 'Internado';
+    return `
+      <tr>
+        <td>${nome}</td>
+        <td>${inicio} – ${fim}</td>
+        <td>${pac.status_pagamento || '—'}</td>
+        <td style="text-align:right;">${pac.valor_recebido != null ? formatBRL(pac.valor_recebido) : '—'}</td>
+        <td>${pac.hospital || '—'}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div class="repasse-pag1">
+      <h3>Demonstrativo de Repasse — ${periodo}</h3>
+      <p style="text-align:center; color:var(--color-text-secondary); margin-bottom:1.5rem; font-family:var(--font-body);">
+        Emissão: ${emissao}
+      </p>
+
+      <div class="repasse-calc-card">
+        <div class="calc-line"><span>Valor Total Recebido</span><span>${formatBRL(dados.total)}</span></div>
+        <div class="calc-line"><span>(-) Impostos (${repasseConfig.pct_impostos}%)</span><span>${formatBRL(dados.impostos)}</span></div>
+        <div class="calc-line"><span>(-) Administração (${repasseConfig.pct_adm}%)</span><span>${formatBRL(dados.adm)}</span></div>
+        <div class="calc-line"><span>= Restante</span><span>${formatBRL(dados.restante)}</span></div>
+        <div class="calc-line"><span>(-) Dra. Samira (${repasseConfig.pct_samira}%)</span><span>${formatBRL(dados.samira)}</span></div>
+        <div class="calc-line"><span>= Divisão da Equipe</span><span>${formatBRL(dados.divisaoEquipe)}</span></div>
+        <div class="calc-line"><span>Total de Visitas (Equipe)</span><span>${dados.totalVisitasEquipe}</span></div>
+        <div class="calc-line"><span>Valor por Visita</span><span>${formatBRL(dados.valorPorVisita)}</span></div>
+      </div>
+
+      <table style="width:100%; border-collapse:collapse; margin-top:1.5rem;">
+        <thead>
+          <tr>
+            <th style="text-align:left;">Paciente</th>
+            <th style="text-align:left;">Período</th>
+            <th style="text-align:left;">Pagou?</th>
+            <th style="text-align:right;">Valor Recebido</th>
+            <th style="text-align:left;">Unidade</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${linhasPacientes}
+        </tbody>
+        <tfoot>
+          <tr style="font-weight:700; border-top:2px solid var(--color-primary);">
+            <td colspan="3">Total</td>
+            <td style="text-align:right;">${formatBRL(dados.total)}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  `;
+}
+
+// === T16 — RENDER PÁG. 2 POR MÉDICO ===
+function renderPag2(medico, dados) {
+  const info = (repasseConfig.medicos && repasseConfig.medicos[medico]) || {};
+  const nomeCompleto = info.nome_completo || medico;
+  const crm = info.crm || '—';
+  const medicoData = dados.repassePorMedico[medico];
+  if (!medicoData || medicoData.visitasMedico === 0) return '';
+
+  // Agrupar visitas por paciente
+  const visitasPorPaciente = {};
+  historicoMes
+    .filter(h => h.medico === medico)
+    .forEach(h => {
+      if (!visitasPorPaciente[h.patient_id]) {
+        visitasPorPaciente[h.patient_id] = { visitas: 0, datas: [] };
+      }
+      visitasPorPaciente[h.patient_id].visitas += h.visitas || 0;
+      visitasPorPaciente[h.patient_id].datas.push(h.data);
+    });
+
+  const linhasPacientes = Object.entries(visitasPorPaciente).map(([patientId, info]) => {
+    const paciente = (window.patients || []).find(p => p.id === patientId);
+    const nome = paciente ? paciente.pacienteNome : '(paciente)';
+    const datasFormatadas = info.datas
+      .sort()
+      .map(d => new Date(d + 'T00:00:00').toLocaleDateString('pt-BR'))
+      .join(', ');
+    const valorRepasse = dados.valorPorVisita * info.visitas;
+    return `
+      <tr>
+        <td>${nome}</td>
+        <td style="text-align:center;">${info.visitas}</td>
+        <td style="font-size:0.8rem;">${datasFormatadas}</td>
+        <td style="text-align:right;">${formatBRL(valorRepasse)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div class="repasse-pag2" data-medico="${medico}">
+      <h3>Repasse — ${nomeCompleto}</h3>
+      <p style="text-align:center; color:var(--color-text-secondary); font-family:var(--font-body); margin-bottom:1.5rem;">
+        CRM: ${crm}
+      </p>
+
+      <div class="repasse-calc-card">
+        <div class="calc-line"><span>Total de Visitas (Equipe)</span><span>${dados.totalVisitasEquipe}</span></div>
+        <div class="calc-line"><span>Visitas deste médico</span><span>${medicoData.visitasMedico}</span></div>
+        <div class="calc-line"><span>Valor por Visita</span><span>${formatBRL(dados.valorPorVisita)}</span></div>
+        <div class="calc-line"><span>Valor Bruto (${medicoData.visitasMedico} × ${formatBRL(dados.valorPorVisita)})</span><span>${formatBRL(medicoData.valorBruto)}</span></div>
+        <div class="calc-line"><span>(-) Desconto de Sala</span><span>${formatBRL(medicoData.desconto)}</span></div>
+        <div class="calc-line"><span>Valor Líquido</span><span>${formatBRL(medicoData.valorLiquido)}</span></div>
+      </div>
+
+      <table style="width:100%; border-collapse:collapse; margin-top:1.5rem;">
+        <thead>
+          <tr>
+            <th style="text-align:left;">Paciente</th>
+            <th style="text-align:center;">Visitas</th>
+            <th style="text-align:left;">Datas</th>
+            <th style="text-align:right;">Valor Repasse</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${linhasPacientes}
+        </tbody>
+        <tfoot>
+          <tr style="font-weight:700; border-top:2px solid var(--color-primary);">
+            <td>Total</td>
+            <td style="text-align:center;">${medicoData.visitasMedico}</td>
+            <td></td>
+            <td style="text-align:right;">${formatBRL(medicoData.valorBruto)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  `;
+}
+
+// === T17 — PROMPT DE CRM FALTANTE ===
+function showPrompt(message, defaultValue) {
+  return new Promise((resolve) => {
+    const value = prompt(message, defaultValue || '');
+    resolve(value);
+  });
+}
+
+async function checkAndPromptCRMs(medicosComVisitas) {
+  for (const medico of medicosComVisitas) {
+    const info = (repasseConfig.medicos && repasseConfig.medicos[medico]) || {};
+    if (!info.crm) {
+      const crm = await showPrompt(`Para gerar o relatório de ${medico}, informe o CRM:`, '');
+      if (crm && crm.trim()) {
+        const medicosAtualizado = { ...(repasseConfig.medicos || {}) };
+        if (!medicosAtualizado[medico]) medicosAtualizado[medico] = {};
+        medicosAtualizado[medico].crm = crm.trim();
+        await saveRepasseConfig({ medicos: medicosAtualizado });
+      }
+    }
+    // Também preencher nome completo se vazio
+    const infoAtualizada = (repasseConfig.medicos && repasseConfig.medicos[medico]) || {};
+    if (!infoAtualizada.nome_completo) {
+      const nome = await showPrompt(`Nome completo do(a) Dr(a). ${medico}:`, `Dr. ${medico}`);
+      if (nome && nome.trim()) {
+        const medicosAtualizado = { ...(repasseConfig.medicos || {}) };
+        if (!medicosAtualizado[medico]) medicosAtualizado[medico] = {};
+        medicosAtualizado[medico].nome_completo = nome.trim();
+        await saveRepasseConfig({ medicos: medicosAtualizado });
+      }
+    }
+  }
+}
+
+// === T18 — GERAR RELATÓRIO E ALTERNÂNCIA DE MODOS ===
+async function gerarRelatorio() {
+  const { mes, ano } = getSelectedMesAno();
+  const valorTotal = parseBRL(document.getElementById('repasse-valor-total')?.value);
+
+  // Validação
+  if (!valorTotal || valorTotal <= 0) {
+    showToast('Informe o valor total recebido');
+    return;
+  }
+
+  const incluidos = repassePacientes.filter(p => p.incluido);
+  if (incluidos.length === 0) {
+    showToast('Nenhum paciente incluído na lista');
+    return;
+  }
+
+  // Salvar dados antes de gerar
+  await saveRepasseData();
+
+  // Carregar histórico do mês
+  await loadHistoricoMes(mes, ano);
+
+  if (historicoMes.length === 0) {
+    showToast('Nenhuma visita registrada neste mês');
+    return;
+  }
+
+  // T17 — Verificar CRMs faltantes
+  const doctorsList = window.DOCTORS || [];
+  const medicosComVisitas = doctorsList.filter(d =>
+    historicoMes.some(h => h.medico === d)
+  );
+  await checkAndPromptCRMs(medicosComVisitas);
+
+  // Calcular
+  const dados = calcularRepasse(repasseConfig, repasseFatura, repassePacientes, historicoMes);
+
+  // Filtrar pacientes para o relatório: incluídos e status != NÃO
+  const pacientesRelatorio = incluidos.filter(p => p.status_pagamento !== 'NÃO');
+
+  // Renderizar
+  const container = document.querySelector('#screen-repasse .repasse-relatorio');
+  if (!container) return;
+
+  let html = renderPag1(dados, pacientesRelatorio);
+
+  for (const medico of medicosComVisitas) {
+    html += renderPag2(medico, dados);
+  }
+
+  container.innerHTML = html;
+
+  // Alternar para modo relatório
+  const screen = document.getElementById('screen-repasse');
+  screen.classList.add('modo-relatorio');
+  screen.classList.remove('modo-entrada');
+  container.style.display = '';
+  document.getElementById('btn-gerar-repasse').style.display = 'none';
+  document.getElementById('btn-editar-repasse').style.display = '';
+  document.getElementById('btn-imprimir-repasse').style.display = '';
+}
+
+function voltarParaEntrada() {
+  const screen = document.getElementById('screen-repasse');
+  screen.classList.remove('modo-relatorio');
+  screen.classList.add('modo-entrada');
+  document.querySelector('#screen-repasse .repasse-relatorio').style.display = 'none';
+  document.getElementById('btn-gerar-repasse').style.display = '';
+  document.getElementById('btn-editar-repasse').style.display = 'none';
+  document.getElementById('btn-imprimir-repasse').style.display = 'none';
+}
+
+// === T13 — MODAL CONFIG ===
+function openRepasseConfigModal() {
+  renderConfigModal();
+  document.getElementById('repasse-config-modal').classList.add('active');
+}
+
+function closeRepasseConfigModal() {
+  document.getElementById('repasse-config-modal').classList.remove('active');
+}
+
+function renderConfigModal() {
+  if (!repasseConfig) return;
+
+  document.getElementById('cfg-pct-impostos').value = repasseConfig.pct_impostos;
+  document.getElementById('cfg-pct-adm').value = repasseConfig.pct_adm;
+  document.getElementById('cfg-pct-samira').value = repasseConfig.pct_samira;
+
+  const doctorsList = window.DOCTORS || [];
+  const descontos = repasseConfig.descontos_sala || {};
+  const medicos = repasseConfig.medicos || {};
+
+  const descontosContainer = document.getElementById('cfg-descontos-sala');
+  descontosContainer.innerHTML = doctorsList.map(d => `
+    <div class="form-row" style="align-items:center; margin-bottom:0.5rem;">
+      <label style="flex:1; margin:0;">${d}</label>
+      <input type="number" class="cfg-desconto" data-medico="${d}"
+        value="${descontos[d] || 0}" step="0.01" min="0"
+        style="width:120px; flex:none;">
+    </div>
+  `).join('');
+
+  const medicosContainer = document.getElementById('cfg-medicos');
+  medicosContainer.innerHTML = doctorsList.map(d => {
+    const info = medicos[d] || {};
+    return `
+      <div style="margin-bottom:1rem; padding:0.75rem; background:#f9fafa; border-radius:var(--radius-md);">
+        <strong style="font-family:var(--font-title); color:var(--color-primary);">${d}</strong>
+        <div class="form-row" style="margin-top:0.5rem;">
+          <div class="form-group" style="min-width:150px;">
+            <label>Nome completo</label>
+            <input type="text" class="cfg-medico-nome" data-medico="${d}"
+              value="${info.nome_completo || ''}" placeholder="Dr. ...">
+          </div>
+          <div class="form-group" style="min-width:100px;">
+            <label>CRM</label>
+            <input type="text" class="cfg-medico-crm" data-medico="${d}"
+              value="${info.crm || ''}" placeholder="000000">
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// === T12 — Adicionar paciente manual ===
+function addPacienteManual() {
+  const nome = prompt('Nome do paciente:');
+  if (!nome || !nome.trim()) return;
+
+  const { mes, ano } = getSelectedMesAno();
+  const primeiroDia = `${ano}-${String(mes).padStart(2, '0')}-01`;
+
+  repassePacientes.push({
+    patient_id: null,
+    nome_override: nome.trim(),
+    periodo_inicio: primeiroDia,
+    periodo_fim: null,
+    hospital: '',
+    status_pagamento: null,
+    valor_recebido: null,
+    incluido: true,
+    _nome_display: nome.trim(),
+    _unsaved: true
+  });
+
+  renderRepasseEntrada();
+  debounceSave();
+}
+
+// === EVENT LISTENERS ===
+document.addEventListener('DOMContentLoaded', () => {
+  // Seletor de mês/ano — T08
+  const mesSelect = document.getElementById('repasse-mes');
+  const anoSelect = document.getElementById('repasse-ano');
+  if (mesSelect) mesSelect.addEventListener('change', loadRepasseMes);
+  if (anoSelect) anoSelect.addEventListener('change', loadRepasseMes);
+
+  // Valor total — auto-save
+  const inputValorTotal = document.getElementById('repasse-valor-total');
+  if (inputValorTotal) {
+    inputValorTotal.addEventListener('input', debounceSave);
+    // Formatar ao sair do campo
+    inputValorTotal.addEventListener('blur', () => {
+      const val = parseBRL(inputValorTotal.value);
+      if (val > 0) inputValorTotal.value = formatBRL(val);
+    });
+  }
+
+  // Delegação de eventos na tabela de pacientes — T10/T11
+  const tbody = document.querySelector('#repasse-pacientes-table tbody');
+  if (tbody) {
+    tbody.addEventListener('change', (e) => {
+      const idx = Number(e.target.dataset.idx);
+      if (isNaN(idx) || !repassePacientes[idx]) return;
+
+      if (e.target.classList.contains('rep-periodo-inicio')) {
+        repassePacientes[idx].periodo_inicio = e.target.value;
+        debounceSave();
+      } else if (e.target.classList.contains('rep-periodo-fim')) {
+        repassePacientes[idx].periodo_fim = e.target.value || null;
+        debounceSave();
+      } else if (e.target.classList.contains('rep-status')) {
+        repassePacientes[idx].status_pagamento = e.target.value || null;
+        debounceSave();
+      } else if (e.target.classList.contains('rep-incluido')) {
+        repassePacientes[idx].incluido = e.target.checked;
+        const tr = e.target.closest('tr');
+        if (tr) tr.classList.toggle('paciente-excluido', !e.target.checked);
+        debounceSave();
+      }
+    });
+
+    tbody.addEventListener('input', (e) => {
+      const idx = Number(e.target.dataset.idx);
+      if (isNaN(idx) || !repassePacientes[idx]) return;
+
+      if (e.target.classList.contains('rep-valor')) {
+        repassePacientes[idx].valor_recebido = parseBRL(e.target.value);
+        debounceSave();
+      }
+    });
+
+    // Formatar valor ao sair do campo
+    tbody.addEventListener('blur', (e) => {
+      if (e.target.classList.contains('rep-valor')) {
+        const val = parseBRL(e.target.value);
+        if (val > 0) e.target.value = formatBRL(val);
+      }
+    }, true);
+
+    // T12 — Deletar paciente
+    tbody.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.rep-delete');
+      if (!btn) return;
+      const idx = Number(btn.dataset.idx);
+      if (isNaN(idx) || !repassePacientes[idx]) return;
+
+      const nome = getNomeDisplay(repassePacientes[idx]);
+      const confirmar = typeof showConfirm === 'function'
+        ? await showConfirm(`Remover "${nome}" da lista?`)
+        : confirm(`Remover "${nome}" da lista?`);
+      if (!confirmar) return;
+
+      if (repassePacientes[idx].id) {
+        await deletePaciente(repassePacientes[idx].id);
+      }
+      repassePacientes.splice(idx, 1);
+      renderRepasseEntrada();
+    });
+  }
+
+  // T12 — Adicionar paciente manual
+  const btnAddPaciente = document.getElementById('btn-add-paciente-repasse');
+  if (btnAddPaciente) btnAddPaciente.addEventListener('click', addPacienteManual);
+
+  // T18 — Gerar relatório, voltar para edição, imprimir
+  const btnGerar = document.getElementById('btn-gerar-repasse');
+  if (btnGerar) btnGerar.addEventListener('click', gerarRelatorio);
+
+  const btnEditar = document.getElementById('btn-editar-repasse');
+  if (btnEditar) btnEditar.addEventListener('click', voltarParaEntrada);
+
+  const btnImprimir = document.getElementById('btn-imprimir-repasse');
+  if (btnImprimir) btnImprimir.addEventListener('click', () => window.print());
+
+  // T13 — Config modal
+  const btnConfig = document.getElementById('btn-repasse-config');
+  if (btnConfig) btnConfig.addEventListener('click', openRepasseConfigModal);
+
+  const btnFecharConfig = document.getElementById('btn-fechar-config-repasse');
+  if (btnFecharConfig) btnFecharConfig.addEventListener('click', closeRepasseConfigModal);
+
+  const btnSalvarConfig = document.getElementById('btn-salvar-config-repasse');
+  if (btnSalvarConfig) {
+    btnSalvarConfig.addEventListener('click', async () => {
+      const doctorsList = window.DOCTORS || [];
+      const descontos = {};
+      document.querySelectorAll('.cfg-desconto').forEach(el => {
+        descontos[el.dataset.medico] = Number(el.value) || 0;
+      });
+      const medicos = {};
+      doctorsList.forEach(d => {
+        const nomeEl = document.querySelector(`.cfg-medico-nome[data-medico="${d}"]`);
+        const crmEl = document.querySelector(`.cfg-medico-crm[data-medico="${d}"]`);
+        medicos[d] = {
+          nome_completo: nomeEl ? nomeEl.value.trim() : '',
+          crm: crmEl ? crmEl.value.trim() : ''
+        };
+      });
+
+      await saveRepasseConfig({
+        pct_impostos: Number(document.getElementById('cfg-pct-impostos').value),
+        pct_adm: Number(document.getElementById('cfg-pct-adm').value),
+        pct_samira: Number(document.getElementById('cfg-pct-samira').value),
+        descontos_sala: descontos,
+        medicos: medicos
+      });
+    });
+  }
+
+  // Fechar modal ao clicar no overlay
+  const configModal = document.getElementById('repasse-config-modal');
+  if (configModal) {
+    configModal.addEventListener('click', (e) => {
+      if (e.target === configModal) closeRepasseConfigModal();
+    });
+  }
+});

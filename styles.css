@@ -873,6 +873,235 @@ tbody tr:hover {
   }
 }
 
+/* ========================================
+   REPASSE
+======================================== */
+
+/* Header */
+.repasse-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.repasse-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.repasse-periodo {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.repasse-periodo select {
+  min-width: 100px;
+}
+
+.repasse-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Alternância de modos */
+#screen-repasse.modo-relatorio .repasse-entrada { display: none; }
+#screen-repasse.modo-relatorio .repasse-header { display: none; }
+#screen-repasse.modo-entrada .repasse-relatorio { display: none; }
+
+/* Tabela de pacientes do repasse */
+#repasse-pacientes-table th {
+  font-size: 0.85rem;
+  padding: 0.75rem 0.5rem;
+}
+
+#repasse-pacientes-table td {
+  padding: 0.5rem;
+  vertical-align: middle;
+}
+
+#repasse-pacientes-table input,
+#repasse-pacientes-table select {
+  padding: 0.4rem 0.5rem;
+  font-size: 0.85rem;
+}
+
+/* Paciente excluído (toggle incluído = false) */
+#repasse-pacientes-table tr.paciente-excluido {
+  opacity: 0.4;
+}
+
+/* Valor total input */
+.repasse-valor-total {
+  text-align: center;
+}
+
+/* Páginas do relatório */
+.repasse-pag1,
+.repasse-pag2 {
+  background: white;
+  padding: 32px;
+  margin-bottom: 24px;
+  border: 1px solid var(--color-secondary);
+  border-radius: var(--radius-lg);
+}
+
+.repasse-pag1 h3,
+.repasse-pag2 h3 {
+  text-align: center;
+  border-bottom: 2px solid var(--color-primary);
+  padding-bottom: 0.75rem;
+}
+
+/* Memória de cálculo */
+.repasse-calc-card {
+  background: var(--color-background);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.5rem;
+  margin: 1rem 0;
+  font-size: 0.9rem;
+}
+
+.repasse-calc-card .calc-line {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.repasse-calc-card .calc-line:last-child {
+  border-bottom: none;
+  font-weight: 700;
+}
+
+/* Config modal sections */
+.repasse-config-section {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--color-background);
+}
+
+.repasse-config-section:last-of-type {
+  border-bottom: none;
+}
+
+/* RBAC: campos financeiros bloqueados para doctor */
+body:not(.role-manager) .financeiro-only input,
+body:not(.role-manager) .financeiro-only select,
+body:not(.role-manager) input.financeiro-only,
+body:not(.role-manager) select.financeiro-only {
+  pointer-events: none;
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+body:not(.role-manager) .manager-only {
+  display: none !important;
+}
+
+/* Print */
+@media print {
+  body > *:not(.container) { display: none !important; }
+  .container > *:not(#screen-repasse) { display: none !important; }
+  .bottom-nav, .navbar, .repasse-header,
+  .repasse-entrada, .btn-print, #btn-editar-repasse { display: none !important; }
+
+  #screen-repasse {
+    display: block !important;
+  }
+
+  .repasse-relatorio {
+    display: block !important;
+  }
+
+  .repasse-pag1,
+  .repasse-pag2 {
+    page-break-after: always;
+    border: none;
+    margin: 0;
+    padding: 20mm;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .btn-print {
+    display: none !important;
+  }
+}
+
+/* Repasse mobile */
+@media (max-width: 768px) {
+  .repasse-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .repasse-controls {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .repasse-periodo {
+    width: 100%;
+  }
+
+  .repasse-periodo select {
+    flex: 1;
+  }
+
+  .repasse-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .repasse-actions button {
+    flex: 1;
+  }
+
+  /* Card layout para tabela de pacientes no mobile */
+  #repasse-pacientes-table thead {
+    display: none;
+  }
+
+  #repasse-pacientes-table tbody tr {
+    display: block;
+    background: var(--color-white);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+    margin-bottom: 1rem;
+    box-shadow: var(--shadow-sm);
+    border-left: 3px solid var(--color-primary);
+  }
+
+  #repasse-pacientes-table tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.4rem 0;
+    border: none;
+    font-size: 0.9rem;
+  }
+
+  #repasse-pacientes-table tbody td::before {
+    content: attr(data-label);
+    font-family: var(--font-title);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    font-size: 0.85rem;
+    flex-shrink: 0;
+    margin-right: 1rem;
+  }
+
+  .repasse-pag1,
+  .repasse-pag2 {
+    padding: 16px;
+  }
+}
+
 /* Modals */
 .modal-overlay {
   position: fixed;

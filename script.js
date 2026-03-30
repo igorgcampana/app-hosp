@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (profileError) console.error("Erro ao buscar perfil:", profileError);
 
   const userRole = profile?.role || 'doctor';
+  window.userRole = userRole;
   console.log("Usuário logado:", session.user.email, "| Papel:", userRole);
 
   // Update user display
@@ -47,6 +48,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // --- DOMAIN CONSTANTS ---
   const DOCTORS = ['Beatriz', 'Eduardo', 'Felipe Reinaldo', 'Igor', 'Tamires'];
+  window.DOCTORS = DOCTORS;
   const HOSPITALS = ['HVNS', 'HSL', 'H9J', 'Outro'];
   const INTERNACAO_TYPES = ['Particular', 'Retaguarda'];
   const STATUS = { INTERNADO: 'Internado', ALTA: 'Alta' };
@@ -344,6 +346,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ...mapPatient(p),
       historico: historicoMap.get(p.id) || []
     }));
+    window.patients = patients;
   }
 
   async function init() {
@@ -1514,6 +1517,8 @@ São Paulo, ${dataExtenso}`;
   }
 
   // EXECUTE INITIALIZATION
-  init();
+  init().then(() => {
+    if (typeof initRepasse === 'function') initRepasse();
+  });
 
 });

@@ -94,6 +94,17 @@
           <span class="tab-label">Calendário</span>
         </button>
       </li>
+      <!-- Tab: Repasse -->
+      <li>
+        <button class="nav-btn" data-target="screen-repasse">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="1" x2="12" y2="23" />
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+          </svg>
+          <span class="tab-label">Repasse</span>
+        </button>
+      </li>
     </ul>
     <!-- Área do usuário: e-mail + botão Sair discreto -->
     <span id="user-display">
@@ -265,6 +276,104 @@
       </div>
     </section>
 
+    <!-- TELA 4 — Repasse -->
+    <section id="screen-repasse" class="screen modo-entrada">
+      <header class="repasse-header">
+        <h2 class="title">Repasse de Visitas</h2>
+        <div class="repasse-controls">
+          <div class="repasse-periodo">
+            <select id="repasse-mes"></select>
+            <select id="repasse-ano"></select>
+          </div>
+          <div class="repasse-actions">
+            <button id="btn-repasse-config" class="btn-secondary">Configurações</button>
+            <button id="btn-gerar-repasse" class="btn-primary" style="width:auto;">Gerar Relatório</button>
+            <button id="btn-editar-repasse" class="btn-secondary" style="display:none;">← Editar</button>
+          </div>
+        </div>
+      </header>
+
+      <div class="repasse-entrada">
+        <div class="card repasse-valor-total">
+          <h3>Valor Total Recebido</h3>
+          <div class="form-group" style="margin-bottom:0;">
+            <input type="text" id="repasse-valor-total" class="financeiro-only" placeholder="R$ 0,00"
+              inputmode="decimal" style="font-size:1.3rem; font-weight:600; text-align:center;">
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Pacientes do Mês</h3>
+          <div class="table-container">
+            <table id="repasse-pacientes-table">
+              <thead>
+                <tr>
+                  <th>Paciente</th>
+                  <th>Início</th>
+                  <th>Fim</th>
+                  <th>Hospital</th>
+                  <th>Pagou?</th>
+                  <th>Valor</th>
+                  <th>Incluído</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+            <p id="empty-repasse-pacientes" class="empty-state">Nenhum paciente encontrado para este mês.</p>
+          </div>
+          <button id="btn-add-paciente-repasse" class="btn-secondary manager-only" style="margin-top:1rem;">+ Adicionar paciente</button>
+        </div>
+      </div>
+
+      <div class="repasse-relatorio" style="display:none;">
+        <!-- Pág. 1 e Pág. 2..N renderizadas via JS -->
+      </div>
+
+      <button id="btn-imprimir-repasse" class="btn-primary btn-print" style="display:none; position:fixed; bottom:80px; right:20px; width:auto; padding:0.75rem 1.5rem; border-radius:50px; box-shadow:var(--shadow-lg); z-index:50;">
+        Imprimir
+      </button>
+    </section>
+
+    <!-- Modal de Configuração do Repasse -->
+    <div id="repasse-config-modal" class="modal-overlay">
+      <div class="card modal-card" style="max-width:520px;">
+        <h3>Configurações do Repasse</h3>
+
+        <div class="repasse-config-section">
+          <h4 style="font-size:1rem; margin-bottom:0.75rem;">Percentuais</h4>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="cfg-pct-impostos">Impostos (%)</label>
+              <input type="number" id="cfg-pct-impostos" step="0.01" min="0" max="100">
+            </div>
+            <div class="form-group">
+              <label for="cfg-pct-adm">Administração (%)</label>
+              <input type="number" id="cfg-pct-adm" step="0.01" min="0" max="100">
+            </div>
+            <div class="form-group">
+              <label for="cfg-pct-samira">Dra. Samira (%)</label>
+              <input type="number" id="cfg-pct-samira" step="0.01" min="0" max="100">
+            </div>
+          </div>
+        </div>
+
+        <div class="repasse-config-section">
+          <h4 style="font-size:1rem; margin-bottom:0.75rem;">Desconto de Sala por Médico</h4>
+          <div id="cfg-descontos-sala"></div>
+        </div>
+
+        <div class="repasse-config-section">
+          <h4 style="font-size:1rem; margin-bottom:0.75rem;">Dados dos Médicos</h4>
+          <div id="cfg-medicos"></div>
+        </div>
+
+        <div class="form-row" style="margin-top:1.5rem;">
+          <button id="btn-salvar-config-repasse" class="btn-primary" style="flex:1; margin-right:0.5rem;">Salvar</button>
+          <button id="btn-fechar-config-repasse" class="btn-secondary" style="flex:1;">Fechar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal de Relatório por Internação -->
     <div id="relatorio-modal" class="modal-overlay">
       <div class="card modal-card" style="max-width: 560px;">
@@ -363,6 +472,7 @@
 
   <!-- Script that handles everything -->
   <script src="script.js"></script>
+  <script src="repasse.js"></script>
 </body>
 
 </html>

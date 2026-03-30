@@ -84,20 +84,16 @@ async function loadRepasseMes() {
         if (p) pac._nome_display = p.pacienteNome;
       }
     });
-    const inputValor = document.getElementById('repasse-valor-total');
-    if (inputValor) inputValor.value = fatura.valor_total_recebido > 0
-      ? formatBRL(fatura.valor_total_recebido) : '';
   } else {
     repassePacientes = prePopularPacientes(mes, ano);
     repasseFatura = null;
-    const inputValor = document.getElementById('repasse-valor-total');
-    if (inputValor) inputValor.value = '';
   }
 
   // Carregar histórico para o resumo
   await loadHistoricoMes(mes, ano);
-  atualizarResumo();
   renderRepasseEntrada();
+  recalcularTotal();
+  atualizarResumo();
   await loadPendentesMesesAnteriores(mes, ano);
 }
 
@@ -251,11 +247,20 @@ async function deletePaciente(id) {
 }
 
 // === RESUMO DO HEADER ===
+function recalcularTotal() {
+  const total = repassePacientes
+    .filter(p => p.incluido && p.status_pagamento !== 'NÃO' && p.valor_recebido > 0)
+    .reduce((s, p) => s + (Number(p.valor_recebido) || 0), 0);
+  const input = document.getElementById('repasse-valor-total');
+  if (input) input.value = total > 0 ? formatBRL(total) : '';
+  return total;
+}
+
 function atualizarResumo() {
   const resumo = document.getElementById('repasse-resumo');
   if (!resumo || !repasseConfig) return;
 
-  const valorTotal = parseBRL(document.getElementById('repasse-valor-total')?.value);
+  const valorTotal = recalcularTotal();
   const totalVisitas = historicoMes.reduce((s, h) => s + (h.visitas || 0), 0);
 
   if (!valorTotal || valorTotal <= 0 || totalVisitas === 0) {
@@ -279,7 +284,7 @@ function atualizarResumo() {
 // === T11 — Auto-save com debounce ===
 async function saveRepasseData() {
   const { mes, ano } = getSelectedMesAno();
-  const valorTotal = parseBRL(document.getElementById('repasse-valor-total')?.value);
+  const valorTotal = recalcularTotal();
 
   // Garantir que a fatura existe
   const fatura = await saveFatura(mes, ano, valorTotal);
@@ -288,7 +293,7 @@ async function saveRepasseData() {
   // Salvar cada paciente
   for (const pac of repassePacientes) {
     // Remover props temporários antes de salvar
-    const { _nome_display, _unsaved, ...dadosSalvar } = pac;
+    const { _nome_display, _unsaved, _ref_mes_anterior, ...dadosSalvar } = pac;
     dadosSalvar.fatura_id = fatura.id;
     const saved = await savePaciente(dadosSalvar);
     if (saved) {
@@ -489,9 +494,16 @@ function renderRepasseEntrada() {
           <select class="rep-status" data-idx="${idx}">${statusSelect}</select>
         </td>
         <td data-label="Valor Recebido" class="financeiro-only">
-          <input type="text" class="rep-valor" inputmode="decimal" data-idx="${idx}"
-            value="${pac.valor_recebido != null ? formatBRL(pac.valor_recebido) : ''}"
-            placeholder="R$ 0,00" style="width:120px;">
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <input type="text" class="rep-valor" inputmode="decimal" data-idx="${idx}"
+              value="${pac.valor_recebido != null && pac.valor_recebido > 0 ? formatBRL(pac.valor_recebido) : ''}"
+              placeholder="R$ recebido" style="width:130px;">
+            ${pac.status_pagamento === 'PARCIAL' ? `
+              <input type="text" class="rep-valor-previsto" inputmode="decimal" data-idx="${idx}"
+                value="${pac.valor_previsto != null && pac.valor_previsto > 0 ? formatBRL(pac.valor_previsto) : ''}"
+                placeholder="R$ previsto" style="width:130px; font-size:0.8rem; color:var(--color-text-secondary);">
+              ${pac.valor_previsto > 0 && pac.valor_recebido > 0 ? `<span style="font-size:0.75rem; color:#d9534f; font-family:var(--font-title);">Falta: ${formatBRL(pac.valor_previsto - pac.valor_recebido)}</span>` : ''}
+            ` : ''}</div>
         </td>
         <td data-label="Incluído" style="white-space:nowrap;">
           <div style="display:flex; align-items:center; gap:8px;">
@@ -1045,18 +1057,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (anoSelect) anoSelect.addEventListener('change', loadRepasseMes);
 
   // Valor total — auto-save
-  const inputValorTotal = document.getElementById('repasse-valor-total');
-  if (inputValorTotal) {
-    inputValorTotal.addEventListener('input', () => {
-      debounceSave();
-      atualizarResumo();
-    });
-    inputValorTotal.addEventListener('blur', () => {
-      const val = parseBRL(inputValorTotal.value);
-      if (val > 0) inputValorTotal.value = formatBRL(val);
-      atualizarResumo();
-    });
-  }
+  // Total recebido é calculado automaticamente — sem listener manual
 
   // Delegação de eventos na tabela de pacientes — T10/T11
   const tbody = document.querySelector('#repasse-pacientes-table tbody');
@@ -1073,9 +1074,14 @@ document.addEventListener('DOMContentLoaded', () => {
         debounceSave();
       } else if (e.target.classList.contains('rep-status')) {
         repassePacientes[idx].status_pagamento = e.target.value || null;
+        renderRepasseEntrada();
+        recalcularTotal();
+        atualizarResumo();
         debounceSave();
       } else if (e.target.classList.contains('rep-incluido')) {
         repassePacientes[idx].incluido = e.target.checked;
+        recalcularTotal();
+        atualizarResumo();
         const tr = e.target.closest('tr');
         if (tr) tr.classList.toggle('paciente-excluido', !e.target.checked);
         debounceSave();
@@ -1088,13 +1094,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (e.target.classList.contains('rep-valor')) {
         repassePacientes[idx].valor_recebido = parseBRL(e.target.value);
+        recalcularTotal();
+        atualizarResumo();
+        debounceSave();
+      } else if (e.target.classList.contains('rep-valor-previsto')) {
+        repassePacientes[idx].valor_previsto = parseBRL(e.target.value);
         debounceSave();
       }
     });
 
-    // Formatar valor ao sair do campo
+    // Formatar valores ao sair do campo
     tbody.addEventListener('blur', (e) => {
-      if (e.target.classList.contains('rep-valor')) {
+      if (e.target.classList.contains('rep-valor') || e.target.classList.contains('rep-valor-previsto')) {
         const val = parseBRL(e.target.value);
         if (val > 0) e.target.value = formatBRL(val);
       }

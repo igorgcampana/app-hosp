@@ -520,10 +520,10 @@ function renderPag2(medico, dados) {
       <div class="repasse-calc-card">
         <div class="calc-line"><span>Total de Visitas (Equipe)</span><span>${dados.totalVisitasEquipe}</span></div>
         <div class="calc-line"><span>Visitas deste médico</span><span>${medicoData.visitasMedico}</span></div>
-        <div class="calc-line"><span>Valor por Visita</span><span>${formatBRL(dados.valorPorVisita)}</span></div>
-        <div class="calc-line"><span>Valor Bruto (${medicoData.visitasMedico} × ${formatBRL(dados.valorPorVisita)})</span><span>${formatBRL(medicoData.valorBruto)}</span></div>
+        <div class="calc-line"><span>Valor por Visita (já líquido de impostos/adm)</span><span>${formatBRL(dados.valorPorVisita)}</span></div>
+        <div class="calc-line"><span>Valor a Receber (${medicoData.visitasMedico} × ${formatBRL(dados.valorPorVisita)})</span><span>${formatBRL(medicoData.valorBruto)}</span></div>
         <div class="calc-line"><span>(-) Desconto de Sala</span><span>${formatBRL(medicoData.desconto)}</span></div>
-        <div class="calc-line"><span>Valor Líquido</span><span>${formatBRL(medicoData.valorLiquido)}</span></div>
+        <div class="calc-line"><span>Valor Líquido Final</span><span>${formatBRL(medicoData.valorLiquido)}</span></div>
       </div>
 
       <table style="width:100%; border-collapse:collapse; margin-top:1.5rem;">
@@ -547,8 +547,64 @@ function renderPag2(medico, dados) {
           </tr>
         </tfoot>
       </table>
+      <div class="repasse-assinatura">
+        <p class="repasse-assinatura-label">Assinatura Digital — ${nomeCompleto}</p>
+        <canvas class="assinatura-canvas" data-medico="${medico}" width="500" height="130"></canvas>
+        <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+          <button class="btn-secondary btn-limpar-assinatura" data-medico="${medico}" style="font-size:0.75rem; padding:0.3rem 0.75rem;">Limpar</button>
+        </div>
+      </div>
     </div>
   `;
+}
+
+function setupSignatureCanvases() {
+  document.querySelectorAll('.assinatura-canvas').forEach(canvas => {
+    const ctx = canvas.getContext('2d');
+    ctx.strokeStyle = '#20515F';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    let drawing = false;
+    let lastX = 0, lastY = 0;
+
+    function getPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      if (e.touches) {
+        return [(e.touches[0].clientX - rect.left) * scaleX, (e.touches[0].clientY - rect.top) * scaleY];
+      }
+      return [(e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY];
+    }
+
+    canvas.addEventListener('mousedown', e => { drawing = true; [lastX, lastY] = getPos(e); });
+    canvas.addEventListener('mousemove', e => {
+      if (!drawing) return;
+      const [x, y] = getPos(e);
+      ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke();
+      [lastX, lastY] = [x, y];
+    });
+    canvas.addEventListener('mouseup', () => { drawing = false; });
+    canvas.addEventListener('mouseleave', () => { drawing = false; });
+
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; [lastX, lastY] = getPos(e); }, { passive: false });
+    canvas.addEventListener('touchmove', e => {
+      e.preventDefault();
+      if (!drawing) return;
+      const [x, y] = getPos(e);
+      ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke();
+      [lastX, lastY] = [x, y];
+    }, { passive: false });
+    canvas.addEventListener('touchend', () => { drawing = false; });
+  });
+
+  document.querySelectorAll('.btn-limpar-assinatura').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const canvas = document.querySelector(`.assinatura-canvas[data-medico="${btn.dataset.medico}"]`);
+      if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    });
+  });
 }
 
 // === T17 — PROMPT DE CRM FALTANTE ===
@@ -637,6 +693,7 @@ async function gerarRelatorio() {
   }
 
   container.innerHTML = html;
+  setupSignatureCanvases();
 
   // Alternar para modo relatório
   const screen = document.getElementById('screen-repasse');
@@ -737,6 +794,41 @@ function addPacienteManual() {
   debounceSave();
 }
 
+// === DOWNLOAD PDF ===
+async function downloadPDF() {
+  const btn = document.getElementById('btn-imprimir-repasse');
+  if (btn) { btn.textContent = 'Gerando PDF...'; btn.disabled = true; }
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const container = document.querySelector('#screen-repasse .repasse-relatorio');
+    const pages = container.querySelectorAll('.repasse-pag1, .repasse-pag2');
+
+    let first = true;
+    for (const page of pages) {
+      const canvas = await html2canvas(page, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      if (!first) pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, imgHeight);
+      first = false;
+    }
+
+    const { mes, ano } = getSelectedMesAno();
+    const meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+    pdf.save(`repasse-${meses[mes - 1]}-${ano}.pdf`);
+    showToast('PDF baixado com sucesso');
+  } catch (err) {
+    console.error('Erro ao gerar PDF:', err);
+    showToast('Erro ao gerar PDF');
+  } finally {
+    if (btn) { btn.textContent = 'Baixar PDF'; btn.disabled = false; }
+  }
+}
+
 // === EVENT LISTENERS ===
 document.addEventListener('DOMContentLoaded', () => {
   // Seletor de mês/ano — T08
@@ -834,7 +926,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnEditar) btnEditar.addEventListener('click', voltarParaEntrada);
 
   const btnImprimir = document.getElementById('btn-imprimir-repasse');
-  if (btnImprimir) btnImprimir.addEventListener('click', () => window.print());
+  if (btnImprimir) btnImprimir.addEventListener('click', downloadPDF);
 
   // T13 — Config modal
   const btnConfig = document.getElementById('btn-repasse-config');

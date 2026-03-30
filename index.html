@@ -28,6 +28,10 @@
 
   <link rel="stylesheet" href="styles.css">
 
+  <!-- PDF generation -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
   <style>
     /* Hide the app body initially to prevent UI flashing before auth is checked */
     body {
@@ -343,7 +347,7 @@
       </div>
 
       <button id="btn-imprimir-repasse" class="btn-primary btn-print" style="display:none; position:fixed; bottom:80px; right:20px; width:auto; padding:0.75rem 1.5rem; border-radius:50px; box-shadow:var(--shadow-lg); z-index:50;">
-        Imprimir
+        Baixar PDF
       </button>
     </section>
 

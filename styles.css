@@ -1024,6 +1024,32 @@ tbody tr:hover {
   font-weight: 700;
 }
 
+/* Assinatura digital */
+.repasse-assinatura {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.repasse-assinatura-label {
+  font-family: var(--font-title);
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.assinatura-canvas {
+  display: block;
+  width: 100%;
+  max-width: 500px;
+  height: 130px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fafafa;
+  cursor: crosshair;
+  touch-action: none;
+}
+
 /* Config modal sections */
 .repasse-config-section {
   margin-bottom: 1.5rem;

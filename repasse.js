@@ -492,11 +492,13 @@ function renderRepasseEntrada() {
             value="${pac.valor_recebido != null ? formatBRL(pac.valor_recebido) : ''}"
             placeholder="R$ 0,00" style="width:120px;">
         </td>
-        <td data-label="Incluído">
-          <label style="display:flex; align-items:center; gap:4px; margin:0; cursor:pointer;">
-            <input type="checkbox" class="rep-incluido" data-idx="${idx}" ${pac.incluido ? 'checked' : ''}>
-          </label>
-          <button class="btn-action manager-only rep-delete" data-idx="${idx}" title="Remover" style="color:#d9534f; margin-left:4px;">✕</button>
+        <td data-label="Incluído" style="white-space:nowrap;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" class="rep-incluido" data-idx="${idx}" ${pac.incluido ? 'checked' : ''}
+              style="width:16px; height:16px; cursor:pointer; margin:0;">
+            <button class="btn-action manager-only rep-delete" data-idx="${idx}" title="Remover"
+              style="color:#d9534f; font-size:0.85rem; line-height:1; padding:0; margin:0;">✕</button>
+          </div>
         </td>
       </tr>
     `;

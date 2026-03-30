@@ -382,13 +382,13 @@ function renderRepasseEntrada() {
           <input type="date" class="rep-periodo-fim" value="${pac.periodo_fim || ''}" data-idx="${idx}">
         </td>
         <td data-label="Hospital">${pac.hospital || '—'}</td>
-        <td data-label="Pagou?" class="financeiro-only">
+        <td data-label="Status" class="financeiro-only">
           <select class="rep-status" data-idx="${idx}">${statusSelect}</select>
         </td>
-        <td data-label="Valor" class="financeiro-only">
+        <td data-label="Valor Recebido" class="financeiro-only">
           <input type="text" class="rep-valor" inputmode="decimal" data-idx="${idx}"
             value="${pac.valor_recebido != null ? formatBRL(pac.valor_recebido) : ''}"
-            placeholder="R$ 0,00" style="width:110px;">
+            placeholder="R$ 0,00" style="width:120px;">
         </td>
         <td data-label="Incluído">
           <label style="display:flex; align-items:center; gap:4px; margin:0; cursor:pointer;">

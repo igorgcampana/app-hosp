@@ -308,14 +308,6 @@
       </header>
 
       <div class="repasse-entrada">
-        <div class="card repasse-valor-total">
-          <h3>Valor Total Recebido</h3>
-          <div class="form-group" style="margin-bottom:0;">
-            <input type="text" id="repasse-valor-total" class="financeiro-only" placeholder="R$ 0,00"
-              inputmode="decimal" style="font-size:1.3rem; font-weight:600; text-align:center;">
-          </div>
-        </div>
-
         <div class="card">
           <h3>Pacientes do Mês</h3>
           <div class="table-container">
@@ -326,12 +318,23 @@
                   <th>Início</th>
                   <th>Fim</th>
                   <th>Hospital</th>
-                  <th>Pagou?</th>
-                  <th>Valor</th>
+                  <th>Status</th>
+                  <th>Valor Recebido</th>
                   <th>Incluído</th>
                 </tr>
               </thead>
               <tbody></tbody>
+              <tfoot>
+                <tr class="repasse-tfoot-total">
+                  <td colspan="4"></td>
+                  <td style="font-family:var(--font-title); font-weight:600; color:var(--color-text-secondary); font-size:0.85rem; white-space:nowrap;">Total Recebido</td>
+                  <td>
+                    <input type="text" id="repasse-valor-total" class="financeiro-only" placeholder="R$ 0,00"
+                      inputmode="decimal" style="font-weight:700; font-size:0.95rem; text-align:right; width:130px;">
+                  </td>
+                  <td></td>
+                </tr>
+              </tfoot>
             </table>
             <p id="empty-repasse-pacientes" class="empty-state">Nenhum paciente encontrado para este mês.</p>
           </div>
@@ -350,8 +353,9 @@
 
     <!-- Modal de Configuração do Repasse -->
     <div id="repasse-config-modal" class="modal-overlay">
-      <div class="card modal-card" style="max-width:520px;">
-        <h3>Configurações do Repasse</h3>
+      <div class="card modal-card" style="max-width:520px; max-height:85vh; display:flex; flex-direction:column;">
+        <h3 style="flex-shrink:0;">Configurações do Repasse</h3>
+        <div style="overflow-y:auto; flex:1; padding-right:4px;">
 
         <div class="repasse-config-section">
           <h4 style="font-size:1rem; margin-bottom:0.75rem;">Percentuais</h4>
@@ -380,8 +384,9 @@
           <h4 style="font-size:1rem; margin-bottom:0.75rem;">Dados dos Médicos</h4>
           <div id="cfg-medicos"></div>
         </div>
+        </div><!-- fim scroll -->
 
-        <div class="form-row" style="margin-top:1.5rem;">
+        <div class="form-row" style="margin-top:1rem; flex-shrink:0;">
           <button id="btn-salvar-config-repasse" class="btn-primary" style="flex:1; margin-right:0.5rem;">Salvar</button>
           <button id="btn-fechar-config-repasse" class="btn-secondary" style="flex:1;">Fechar</button>
         </div>

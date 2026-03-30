@@ -969,6 +969,13 @@ tbody tr:hover {
   font-size: 0.85rem;
 }
 
+/* Rodapé da tabela — valor total recebido */
+.repasse-tfoot-total td {
+  padding: 0.75rem 0.5rem;
+  background: var(--color-background);
+  border-top: 2px solid var(--color-primary);
+}
+
 /* Paciente excluído (toggle incluído = false) */
 #repasse-pacientes-table tr.paciente-excluido {
   opacity: 0.4;

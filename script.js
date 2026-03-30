@@ -892,11 +892,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       'Outro': 'Outro'
     };
     const DOCTOR_TITLES = {
-      'Beatriz': 'Dra. Beatriz',
-      'Eduardo': 'Dr. Eduardo',
-      'Felipe Reinaldo': 'Dr. Felipe Reinaldo',
-      'Igor': 'Dr. Igor',
-      'Tamires': 'Dra. Tamires'
+      'Beatriz': 'Dra. Beatriz Carneiro',
+      'Eduardo': 'Dr. Eduardo Tieppo',
+      'Felipe Reinaldo': 'Dr. Felipe Reinaldo de Deus',
+      'Igor': 'Dr. Igor Campana',
+      'Tamires': 'Dra. Tamires Figueiredo'
     };
     const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 
@@ -1017,7 +1017,6 @@ São Paulo, ${dataExtenso}`;
               return;
             }
 
-            await recalcPatientDates(p.id);
             await fetchAllData();
             renderPatientsTable();
             renderCalendar();

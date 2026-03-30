@@ -23,18 +23,20 @@ Resolve a necessidade de organizar e centralizar as visitas hospitalares da equi
 - `script.js`: Toda a lógica de negócio do painel (operações CRUD, filtros, renderizações, event delegation, UX/Toasts).
 - `login.js`: Lógica exclusiva da tela de login (Autenticação do Supabase).
 - `vercel.json`: Arquivo de configuração da Vercel para roteamento (fallback) adequado.
+- `BROWNFIELD_MAPPING.md`: Mapeamento amplo da arquitetura, fluxos, regras de negócio e riscos do sistema.
+- `.specs/codebase/`: Documentação brownfield fatiada por tema (`ARCHITECTURE`, `STRUCTURE`, `CONCERNS`, `TESTING`, etc.).
 
 ## Variáveis de ambiente necessárias
-As chaves públicas exigidas pelo frontend (Supabase) estão *hardcoded* nos arquivos `.js` propositalmente por ser um frontend estático estrito sem backend Node. 
+As chaves públicas exigidas pelo frontend (Supabase) estão *hardcoded* em `script.js` e `login.js` propositalmente por ser um frontend estático estrito sem backend Node.
 As variáveis envolvidas são:
 - `SUPABASE_URL`: URL principal do banco.
 - `SUPABASE_ANON_KEY`: Chave anônima para interações cliente-servidor (protegida via RLS da tabela).
 
 ## Como rodar localmente
 1. Clone o repositório no seu computador.
-2. Não há necessidade de `npm install`. Basta usar a extensão "Live Server" no VS Code.
-3. Clique com o botão direito em `login.html` e escolha "Open with Live Server".
-4. O app iniciará no seu navegador padrão (`localhost:5500/login.html`).
+2. Não há necessidade de `npm install`.
+3. Sirva os arquivos estáticos com uma extensão como "Live Server" no VS Code ou com um servidor HTTP simples.
+4. Abra `login.html` no navegador pelo endereço servido localmente.
 
 ## Como fazer deploy
 O deploy é contínuo e automático via **Vercel**. 
@@ -48,6 +50,7 @@ O deploy é contínuo e automático via **Vercel**.
 - **Prevenção XSS:** Todo dado injetado no DOM que vem do banco (`innerHTML`) passa por uma função utilitária local `esc(str)` que intercepta tags HTML e scripts maliciosos.
 - **Sem frameworks/Bundlers:** Por uma escolha de arquitetura pautada na simplicidade máxima, não se usa React, Vue, Webpack ou Vite. 
 - **Event Delegation:** Todos os eventos da SPA (cliques em botões, aberturas de modal, ações nas tabelas) estão acorrentados em um único `document.addEventListener` global usando `data-action` visando estrita performance de memória.
+- **Init defensivo de UI:** O `body` inicia oculto até a sessão ser validada e um loader visual (`#app-loader`) protege contra flash de interface antes do auth check.
 
 ## Funcionalidades implementadas
 - [x] Autenticação completa via Supabase (Login).
@@ -74,6 +77,7 @@ O deploy é contínuo e automático via **Vercel**.
 - **Identidade visual estrita:** Utilize as variáveis CSS localizadas no root de `styles.css`. Cor Primária `#20515F`. Fonte para Textos `Merriweather`, Fontes de Títulos `League Spartan`. Sem Tailwind.
 - **Paradigma:** Código Vanilla JS com manipulação direta de DOM. Tudo no `script.js` dentro do wrapper `DOMContentLoaded`.
 - **Datas:** Nunca use `Date.toISOString()` sem tratamento pois envia pro UTC (o que troca o dia 21h em Brasília para o dia seguinte). Sempre construa a data no formato legível `YYYY-MM-DD` lendo localmente a data do usuário (`getFullYear`, `getMonth`, etc).
+- **Ponto de entrada da documentação:** Consulte primeiro `BROWNFIELD_MAPPING.md` e depois `.specs/codebase/README.md` para navegação rápida.
 
 **Não alterar sem discussão:**
 - O esquema de banco de dados (`patients`, `historico`, `profiles`).

@@ -19,7 +19,12 @@ function formatBRL(valor) {
 function parseBRL(str) {
   if (typeof str === 'number') return str;
   if (!str) return 0;
-  return Number(str.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+  // Formato pt-BR: "R$ 1.000,50" → remove R$, espaços, pontos de milhar, troca vírgula por ponto
+  const cleaned = str
+    .replace(/[R$\s]/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
+  return Number(cleaned) || 0;
 }
 
 function getNomeDisplay(pac) {

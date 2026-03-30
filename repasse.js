@@ -512,7 +512,11 @@ function renderPag2(medico, dados) {
 
   return `
     <div class="repasse-pag2" data-medico="${medico}">
-      <h3>Repasse — ${nomeCompleto}</h3>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.5rem;">
+        <h3 style="border:none; padding:0; margin:0;">${nomeCompleto}</h3>
+        <button class="btn-secondary btn-pdf-medico" data-medico="${medico}" data-label="↓ PDF"
+          style="font-size:0.75rem; padding:0.3rem 0.75rem; white-space:nowrap;">↓ PDF</button>
+      </div>
       <p style="text-align:center; color:var(--color-text-secondary); font-family:var(--font-body); margin-bottom:1.5rem;">
         CRM: ${crm}
       </p>
@@ -695,6 +699,11 @@ async function gerarRelatorio() {
   container.innerHTML = html;
   setupSignatureCanvases();
 
+  // Botões de download individual por médico
+  container.querySelectorAll('.btn-pdf-medico').forEach(btn => {
+    btn.addEventListener('click', () => downloadPDFMedico(btn.dataset.medico, btn));
+  });
+
   // Alternar para modo relatório
   const screen = document.getElementById('screen-repasse');
   screen.classList.add('modo-relatorio');
@@ -795,38 +804,48 @@ function addPacienteManual() {
 }
 
 // === DOWNLOAD PDF ===
-async function downloadPDF() {
-  const btn = document.getElementById('btn-imprimir-repasse');
-  if (btn) { btn.textContent = 'Gerando PDF...'; btn.disabled = true; }
-
+async function gerarPDF(pages, nomeArquivo, btnRef) {
+  if (btnRef) { btnRef.textContent = 'Gerando...'; btnRef.disabled = true; }
   try {
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('p', 'mm', 'a4');
     const pdfWidth = pdf.internal.pageSize.getWidth();
-    const container = document.querySelector('#screen-repasse .repasse-relatorio');
-    const pages = container.querySelectorAll('.repasse-pag1, .repasse-pag2');
-
     let first = true;
     for (const page of pages) {
       const canvas = await html2canvas(page, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
       const imgData = canvas.toDataURL('image/jpeg', 0.92);
       const imgHeight = (canvas.height * pdfWidth) / canvas.width;
-
       if (!first) pdf.addPage();
       pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, imgHeight);
       first = false;
     }
-
-    const { mes, ano } = getSelectedMesAno();
-    const meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-    pdf.save(`repasse-${meses[mes - 1]}-${ano}.pdf`);
-    showToast('PDF baixado com sucesso');
+    pdf.save(nomeArquivo);
+    showToast('PDF baixado');
   } catch (err) {
     console.error('Erro ao gerar PDF:', err);
     showToast('Erro ao gerar PDF');
   } finally {
-    if (btn) { btn.textContent = 'Baixar PDF'; btn.disabled = false; }
+    if (btnRef) { btnRef.textContent = btnRef.dataset.label || 'Baixar PDF'; btnRef.disabled = false; }
   }
+}
+
+async function downloadPDF() {
+  const btn = document.getElementById('btn-imprimir-repasse');
+  const container = document.querySelector('#screen-repasse .repasse-relatorio');
+  const pages = [...container.querySelectorAll('.repasse-pag1, .repasse-pag2')];
+  const { mes, ano } = getSelectedMesAno();
+  const meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  await gerarPDF(pages, `repasse-completo-${meses[mes - 1]}-${ano}.pdf`, btn);
+}
+
+async function downloadPDFMedico(medico, btn) {
+  const container = document.querySelector('#screen-repasse .repasse-relatorio');
+  const pagMedico = container.querySelector(`.repasse-pag2[data-medico="${medico}"]`);
+  if (!pagMedico) return;
+  const { mes, ano } = getSelectedMesAno();
+  const meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const nomeArquivo = `repasse-${medico.toLowerCase().replace(/\s+/g, '-')}-${meses[mes - 1]}-${ano}.pdf`;
+  await gerarPDF([pagMedico], nomeArquivo, btn);
 }
 
 // === EVENT LISTENERS ===

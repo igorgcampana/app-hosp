@@ -322,3 +322,75 @@ function concReconcile(dadosPdf, dadosSupabase) {
 
   return results;
 }
+
+// === UI RENDERING ===
+
+function concShowState(stateId) {
+  ['conciliacao-upload', 'conciliacao-loading', 'conciliacao-results', 'conciliacao-error']
+    .forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.style.display = (id === stateId) ? '' : 'none';
+    });
+}
+
+function concSetLoading(message) {
+  concShowState('conciliacao-loading');
+  document.getElementById('conciliacao-loading-msg').textContent = message;
+}
+
+function concShowError(message) {
+  concShowState('conciliacao-error');
+  document.getElementById('conciliacao-error-msg').textContent = message;
+}
+
+function concRenderSummary(resultados) {
+  var statuses = resultados.map(function(r) { return r.status; });
+  var totalGlosaDias = resultados.reduce(function(sum, r) { return sum + r.datas_nao_pagas.length; }, 0);
+  var glosaCount = statuses.filter(function(s) {
+    return s === 'Glosa' || s === 'Glosa + Pagamento a Maior';
+  }).length;
+
+  var cards = [
+    { label: 'Pacientes PDF', value: resultados.filter(function(r) { return r.nome_pdf; }).length, color: 'var(--color-primary)' },
+    { label: 'Match Perfeito', value: statuses.filter(function(s) { return s === 'Match Perfeito'; }).length, color: '#27ae60' },
+    { label: 'Glosas', value: glosaCount + ' (' + totalGlosaDias + ' dias)', color: '#c0392b' },
+    { label: 'Nao Faturados', value: statuses.filter(function(s) { return s === 'Nao Faturado'; }).length, color: '#c0392b' },
+    { label: 'Nao Encontrados', value: statuses.filter(function(s) { return s === 'Nao Encontrado'; }).length, color: '#e67e22' },
+  ];
+
+  var html = '';
+  cards.forEach(function(c) {
+    html += '<div class="conciliacao-summary-card">' +
+      '<span class="summary-value" style="color:' + c.color + '">' + c.value + '</span>' +
+      '<span class="summary-label">' + c.label + '</span>' +
+      '</div>';
+  });
+  document.getElementById('conciliacao-summary-cards').innerHTML = html;
+}
+
+function concRenderTable(resultados) {
+  var tbody = document.getElementById('conciliacao-table-body');
+  var html = '';
+
+  resultados.forEach(function(r) {
+    var cssClass = CONC_STATUS_COLORS[r.status] || '';
+    html += '<tr class="' + cssClass + '">' +
+      '<td>' + (r.nome_pdf || '') + '</td>' +
+      '<td>' + (r.nome_supabase || '') + '</td>' +
+      '<td>' + (r.score_match != null ? r.score_match : '') + '</td>' +
+      '<td>' + r.datas_esperadas.length + '</td>' +
+      '<td>' + r.datas_pagas.length + '</td>' +
+      '<td>' + r.datas_nao_pagas.join(', ') + '</td>' +
+      '<td>' + r.datas_extras.join(', ') + '</td>' +
+      '<td>' + r.status + '</td>' +
+      '</tr>';
+  });
+
+  tbody.innerHTML = html;
+}
+
+function concRenderResults(resultados, dadosPdf) {
+  concShowState('conciliacao-results');
+  concRenderSummary(resultados);
+  concRenderTable(resultados);
+}

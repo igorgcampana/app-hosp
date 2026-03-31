@@ -452,3 +452,119 @@ function concExportToExcel(resultados, periodoInicio) {
 
   XLSX.writeFile(wb, filename);
 }
+
+// === ORCHESTRATOR ===
+
+async function concProcessar() {
+  var fileInput = document.getElementById('conciliacao-pdf-input');
+  var file = fileInput.files[0];
+  var apiKey = document.getElementById('conciliacao-gemini-key').value.trim();
+
+  if (!file) return;
+  if (!apiKey) {
+    alert('Insira sua chave Gemini API.');
+    return;
+  }
+
+  // Save API key for next time
+  localStorage.setItem('geminiApiKey', apiKey);
+
+  try {
+    // 1. Extract from PDF
+    concSetLoading('Extraindo dados do PDF via Gemini...');
+    conciliacaoDadosPdf = await concExtractFromPdf(file, apiKey);
+
+    // 2. Query Supabase
+    concSetLoading('Consultando pacientes no Supabase...');
+    var dadosSupabase = await concFetchPatients(
+      conciliacaoDadosPdf.periodo_inicio,
+      conciliacaoDadosPdf.periodo_fim
+    );
+
+    // 3. Reconcile
+    concSetLoading('Cruzando dados...');
+    conciliacaoResultados = concReconcile(conciliacaoDadosPdf, dadosSupabase);
+
+    // 4. Render results
+    concRenderResults(conciliacaoResultados, conciliacaoDadosPdf);
+
+  } catch (e) {
+    console.error('Conciliacao error:', e);
+    concShowError(e.message);
+  }
+}
+
+// === INIT ===
+
+function initConciliacao() {
+  // Restore saved API key
+  var savedKey = localStorage.getItem('geminiApiKey');
+  var keyInput = document.getElementById('conciliacao-gemini-key');
+  if (savedKey && keyInput) {
+    keyInput.value = savedKey;
+  }
+
+  // File input change — show file name + enable button
+  var fileInput = document.getElementById('conciliacao-pdf-input');
+  var processarBtn = document.getElementById('conciliacao-processar-btn');
+  var fileNameSpan = document.getElementById('conciliacao-file-name');
+
+  if (fileInput) {
+    fileInput.addEventListener('change', function() {
+      if (fileInput.files.length > 0) {
+        fileNameSpan.textContent = fileInput.files[0].name;
+        processarBtn.disabled = false;
+      } else {
+        fileNameSpan.textContent = '';
+        processarBtn.disabled = true;
+      }
+    });
+  }
+
+  // Make upload area clickable
+  var uploadArea = document.querySelector('.conciliacao-upload-area');
+  if (uploadArea) {
+    uploadArea.addEventListener('click', function(e) {
+      if (e.target.tagName !== 'BUTTON') {
+        fileInput.click();
+      }
+    });
+  }
+
+  // Processar button
+  if (processarBtn) {
+    processarBtn.addEventListener('click', concProcessar);
+  }
+
+  // Export Excel button
+  var exportBtn = document.getElementById('conciliacao-export-btn');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', function() {
+      if (conciliacaoResultados && conciliacaoDadosPdf) {
+        concExportToExcel(conciliacaoResultados, conciliacaoDadosPdf.periodo_inicio);
+      }
+    });
+  }
+
+  // Nova conciliacao button
+  var novaBtn = document.getElementById('conciliacao-nova-btn');
+  if (novaBtn) {
+    novaBtn.addEventListener('click', function() {
+      conciliacaoResultados = null;
+      conciliacaoDadosPdf = null;
+      var fi = document.getElementById('conciliacao-pdf-input');
+      fi.value = '';
+      document.getElementById('conciliacao-file-name').textContent = '';
+      document.getElementById('conciliacao-processar-btn').disabled = true;
+      concShowState('conciliacao-upload');
+    });
+  }
+
+  // Retry button
+  var retryBtn = document.getElementById('conciliacao-retry-btn');
+  if (retryBtn) {
+    retryBtn.addEventListener('click', function() {
+      concShowState('conciliacao-upload');
+    });
+  }
+}

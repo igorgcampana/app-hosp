@@ -155,6 +155,11 @@ body.role-manager #btn-gerar-relatorio {
   display: none !important;
 }
 
+body.role-manager #conciliacao-processar-btn,
+body.role-manager #conciliacao-export-btn {
+  display: none !important;
+}
+
 body.role-manager #relatorio-texto,
 body.role-manager #relatorio-cid10 {
   background-color: #f0f0f0;

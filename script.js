@@ -1521,6 +1521,7 @@ São Paulo, ${dataExtenso}`;
   // EXECUTE INITIALIZATION
   init().then(() => {
     if (typeof initRepasse === 'function') initRepasse();
+    if (typeof initConciliacao === 'function') initConciliacao();
   });
 
 });

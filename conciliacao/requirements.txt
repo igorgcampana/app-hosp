@@ -1,0 +1,8 @@
+google-genai
+supabase
+thefuzz
+python-Levenshtein
+pandas
+openpyxl
+python-dotenv
+pytest

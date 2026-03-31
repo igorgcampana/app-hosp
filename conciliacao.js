@@ -394,3 +394,61 @@ function concRenderResults(resultados, dadosPdf) {
   concRenderSummary(resultados);
   concRenderTable(resultados);
 }
+
+// === EXCEL EXPORT ===
+
+function concExportToExcel(resultados, periodoInicio) {
+  var rows = resultados.map(function(r) {
+    return {
+      'Nome Faturamento': r.nome_pdf || '',
+      'Nome Supabase': r.nome_supabase || '',
+      'Score Match': r.score_match != null ? r.score_match : '',
+      'Dias Esperados': r.datas_esperadas.length,
+      'Dias Pagos': r.datas_pagas.length,
+      'Datas Nao Pagas': r.datas_nao_pagas.join(', '),
+      'Datas Extras': r.datas_extras.join(', '),
+      'Status': r.status,
+    };
+  });
+
+  // Summary rows
+  var statuses = resultados.map(function(r) { return r.status; });
+  var totalGlosaDias = resultados.reduce(function(sum, r) { return sum + r.datas_nao_pagas.length; }, 0);
+  var glosaCount = statuses.filter(function(s) { return s === 'Glosa' || s === 'Glosa + Pagamento a Maior'; }).length;
+
+  var summaryRows = [
+    {},
+    { 'Nome Faturamento': 'Total pacientes PDF:', 'Nome Supabase': String(resultados.filter(function(r) { return r.nome_pdf; }).length) },
+    { 'Nome Faturamento': 'Total pacientes Supabase:', 'Nome Supabase': String(resultados.filter(function(r) { return r.nome_supabase; }).length) },
+    { 'Nome Faturamento': 'Match Perfeito:', 'Nome Supabase': String(statuses.filter(function(s) { return s === 'Match Perfeito'; }).length) },
+    { 'Nome Faturamento': 'Glosas:', 'Nome Supabase': glosaCount + ' (' + totalGlosaDias + ' dias nao pagos)' },
+    { 'Nome Faturamento': 'Nao Faturados:', 'Nome Supabase': String(statuses.filter(function(s) { return s === 'Nao Faturado'; }).length) },
+    { 'Nome Faturamento': 'Nao Encontrados:', 'Nome Supabase': String(statuses.filter(function(s) { return s === 'Nao Encontrado'; }).length) },
+  ];
+
+  var allRows = rows.concat(summaryRows);
+
+  var ws = XLSX.utils.json_to_sheet(allRows);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Conciliacao');
+
+  // Auto-adjust column widths
+  var colWidths = Object.keys(allRows[0] || {}).map(function(key) {
+    var maxLen = key.length;
+    allRows.forEach(function(row) {
+      var val = row[key];
+      if (val != null) {
+        var len = String(val).length;
+        if (len > maxLen) maxLen = len;
+      }
+    });
+    return { wch: Math.min(maxLen + 4, 50) };
+  });
+  ws['!cols'] = colWidths;
+
+  // Generate filename from period
+  var dateParts = periodoInicio.split('/');
+  var filename = 'conciliacao_' + dateParts[2] + '-' + dateParts[1] + '.xlsx';
+
+  XLSX.writeFile(wb, filename);
+}

@@ -114,3 +114,55 @@ function concReadFileAsBase64(file) {
     reader.readAsDataURL(file);
   });
 }
+
+// === GEMINI EXTRACTION ===
+
+async function concExtractFromPdf(file, apiKey) {
+  var base64 = await concReadFileAsBase64(file);
+
+  var body = {
+    contents: [{
+      parts: [
+        { inline_data: { mime_type: 'application/pdf', data: base64 } },
+        { text: CONC_EXTRACTION_PROMPT },
+      ],
+    }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: CONC_RESPONSE_SCHEMA,
+    },
+  };
+
+  var maxRetries = 3;
+  for (var attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      var response = await fetch(CONC_GEMINI_URL + '?key=' + apiKey, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        var errText = await response.text();
+        throw new Error('HTTP ' + response.status + ': ' + errText);
+      }
+
+      var result = await response.json();
+      var text = result.candidates[0].content.parts[0].text;
+      var data = JSON.parse(text);
+
+      if (!data.pacientes || data.pacientes.length === 0) {
+        throw new Error('Gemini retornou lista de pacientes vazia.');
+      }
+
+      return data;
+    } catch (e) {
+      if (attempt < maxRetries - 1) {
+        var wait = Math.pow(2, attempt + 1) * 1000;
+        await new Promise(function(r) { setTimeout(r, wait); });
+      } else {
+        throw new Error('Falha na extracao apos ' + maxRetries + ' tentativas: ' + e.message);
+      }
+    }
+  }
+}

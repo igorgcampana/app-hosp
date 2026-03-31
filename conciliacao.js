@@ -166,3 +166,159 @@ async function concExtractFromPdf(file, apiKey) {
     }
   }
 }
+
+// === SUPABASE ===
+
+async function concFetchPatients(periodoInicio, periodoFim) {
+  // Convert DD/MM/YYYY to YYYY-MM-DD for Supabase query
+  var inicio = concParseDate(periodoInicio);
+  var fim = concParseDate(periodoFim);
+  var inicioIso = inicio.getFullYear() + '-' +
+    String(inicio.getMonth() + 1).padStart(2, '0') + '-' +
+    String(inicio.getDate()).padStart(2, '0');
+  var fimIso = fim.getFullYear() + '-' +
+    String(fim.getMonth() + 1).padStart(2, '0') + '-' +
+    String(fim.getDate()).padStart(2, '0');
+
+  var response = await supabaseClient
+    .from('patients')
+    .select('pacientenome, dataprimeiraavaliacao, dataultimavisita')
+    .eq('hospital', 'HSL')
+    .lte('dataprimeiraavaliacao', fimIso)
+    .gte('dataultimavisita', inicioIso);
+
+  if (response.error) throw new Error('Supabase: ' + response.error.message);
+
+  return response.data.map(function(row) {
+    return {
+      nome: row.pacientenome,
+      data_inicio: row.dataprimeiraavaliacao,
+      data_fim: row.dataultimavisita,
+    };
+  });
+}
+
+// === MATCHER ===
+
+function concCalcExpectedDates(pacSupa, periodoInicio, periodoFim) {
+  var pInicio = concParseDate(periodoInicio);
+  var pFim = concParseDate(periodoFim);
+  var sInicio = concParseDate(concParseSupabaseDate(pacSupa.data_inicio));
+  var sFim = concParseDate(concParseSupabaseDate(pacSupa.data_fim));
+
+  var inicio = pInicio > sInicio ? pInicio : sInicio;
+  var fim = pFim < sFim ? pFim : sFim;
+
+  if (inicio > fim) return new Set();
+  return concDateRange(concFormatDate(inicio), concFormatDate(fim));
+}
+
+function concClassify(datasNaoPagas, datasExtras) {
+  var hasMissing = datasNaoPagas.length > 0;
+  var hasExtra = datasExtras.length > 0;
+  if (hasMissing && hasExtra) return 'Glosa + Pagamento a Maior';
+  if (hasMissing) return 'Glosa';
+  if (hasExtra) return 'Pagamento a Maior';
+  return 'Match Perfeito';
+}
+
+function concNotFound(nomePdf, datasPagas) {
+  return {
+    nome_pdf: nomePdf,
+    nome_supabase: null,
+    score_match: 0,
+    datas_esperadas: [],
+    datas_pagas: concSortDates(datasPagas),
+    datas_nao_pagas: [],
+    datas_extras: [],
+    status: 'Nao Encontrado',
+  };
+}
+
+function concReconcile(dadosPdf, dadosSupabase) {
+  var periodoInicio = dadosPdf.periodo_inicio;
+  var periodoFim = dadosPdf.periodo_fim;
+
+  // Build lookup structures
+  var supaNormalized = {};
+  var supaByOriginal = {};
+  dadosSupabase.forEach(function(p) {
+    var norm = concNormalize(p.nome);
+    supaNormalized[norm] = p.nome;
+    supaByOriginal[p.nome] = p;
+  });
+
+  var supaNormKeys = Object.keys(supaNormalized);
+  var matchedSupabase = {};
+  var results = [];
+
+  dadosPdf.pacientes.forEach(function(pacPdf) {
+    var nomePdf = pacPdf.nome;
+    var datasPagas = new Set(pacPdf.datas);
+
+    if (supaNormKeys.length === 0) {
+      results.push(concNotFound(nomePdf, datasPagas));
+      return;
+    }
+
+    // Fuzzy match using fuzzball
+    var normalizedPdf = concNormalize(nomePdf);
+    var matches = fuzzball.extract(normalizedPdf, supaNormKeys, {
+      scorer: fuzzball.ratio,
+      limit: 1,
+    });
+
+    if (matches.length > 0 && matches[0][1] >= CONC_SCORE_THRESHOLD) {
+      var nomeSupaNorm = matches[0][0];
+      var score = matches[0][1];
+      var nomeSupaOriginal = supaNormalized[nomeSupaNorm];
+      var pacSupa = supaByOriginal[nomeSupaOriginal];
+      matchedSupabase[nomeSupaOriginal] = true;
+
+      var datasEsperadas = concCalcExpectedDates(pacSupa, periodoInicio, periodoFim);
+
+      // Set difference: esperadas - pagas
+      var datasNaoPagas = concSortDates(
+        new Set([...datasEsperadas].filter(function(d) { return !datasPagas.has(d); }))
+      );
+      // Set difference: pagas - esperadas
+      var datasExtras = concSortDates(
+        new Set([...datasPagas].filter(function(d) { return !datasEsperadas.has(d); }))
+      );
+
+      var status = concClassify(datasNaoPagas, datasExtras);
+
+      results.push({
+        nome_pdf: nomePdf,
+        nome_supabase: nomeSupaOriginal,
+        score_match: score,
+        datas_esperadas: concSortDates(datasEsperadas),
+        datas_pagas: concSortDates(datasPagas),
+        datas_nao_pagas: datasNaoPagas,
+        datas_extras: datasExtras,
+        status: status,
+      });
+    } else {
+      results.push(concNotFound(nomePdf, datasPagas));
+    }
+  });
+
+  // Reverse path: Supabase patients without PDF match
+  dadosSupabase.forEach(function(pacSupa) {
+    if (!matchedSupabase[pacSupa.nome]) {
+      var datasEsperadas = concCalcExpectedDates(pacSupa, periodoInicio, periodoFim);
+      results.push({
+        nome_pdf: null,
+        nome_supabase: pacSupa.nome,
+        score_match: null,
+        datas_esperadas: concSortDates(datasEsperadas),
+        datas_pagas: [],
+        datas_nao_pagas: concSortDates(datasEsperadas),
+        datas_extras: [],
+        status: 'Nao Faturado',
+      });
+    }
+  });
+
+  return results;
+}

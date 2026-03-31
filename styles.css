@@ -1168,16 +1168,16 @@ input.rep-valor-inconsistente {
 }
 
 /* RBAC: campos financeiros bloqueados para doctor */
-body:not(.role-manager) .financeiro-only input,
-body:not(.role-manager) .financeiro-only select,
-body:not(.role-manager) input.financeiro-only,
-body:not(.role-manager) select.financeiro-only {
+body.role-doctor .financeiro-only input,
+body.role-doctor .financeiro-only select,
+body.role-doctor input.financeiro-only,
+body.role-doctor select.financeiro-only {
   pointer-events: none;
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-body:not(.role-manager) .manager-only {
+body.role-doctor .manager-only {
   display: none !important;
 }
 

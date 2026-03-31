@@ -402,23 +402,33 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // PERMISSIONS CONTROL
-  function applyRolePermissions(role) {
-    if (role === 'manager') {
-      const navRegistro = document.querySelector('.nav-btn[data-target="screen-registro"]');
-      if (navRegistro) {
-        navRegistro.style.display = 'none';
-        navRegistro.classList.remove('active');
-      }
+  function hideNavTab(screenId) {
+    const btn = document.querySelector(`.nav-btn[data-target="${screenId}"]`);
+    if (btn) {
+      btn.style.display = 'none';
+      btn.classList.remove('active');
+    }
+    const screen = document.getElementById(screenId);
+    if (screen) screen.classList.remove('active');
+  }
 
-      const screenRegistro = document.getElementById('screen-registro');
+  function applyRolePermissions(role) {
+    document.body.classList.add('role-' + role);
+
+    // Doctor e Manager: sem Repasse e Conciliacao
+    if (role === 'doctor' || role === 'manager') {
+      hideNavTab('screen-repasse');
+      hideNavTab('screen-conciliacao');
+    }
+
+    // Manager: sem Registro tambem, default para Ficha
+    if (role === 'manager') {
+      hideNavTab('screen-registro');
+
       const screenFicha = document.getElementById('screen-ficha');
       const btnFicha = document.querySelector('.nav-btn[data-target="screen-ficha"]');
-
-      if (screenRegistro) screenRegistro.classList.remove('active');
       if (screenFicha) screenFicha.classList.add('active');
       if (btnFicha) btnFicha.classList.add('active');
-
-      document.body.classList.add('role-manager');
     }
   }
 

@@ -1,20 +1,21 @@
 # AppHosp - Censo Hospitalar
 
 ## O que é
-É um sistema de gestão de censo hospitalar desenvolvido exclusivamente para o Dr. Igor Campana. Uma aplicação em Single Page Application (SPA) pura (sem frameworks) que permite o acompanhamento diário de pacientes internados, registros de visitas médicas e visualização histórica de atendimentos.
+É um sistema de gestão hospitalar desenvolvido exclusivamente para o Dr. Igor Campana. Hoje o núcleo produtivo cobre censo hospitalar, histórico de visitas, repasse mensal e conciliação de faturamento. O repositório também já contém a base inicial do módulo de ambulatório e a documentação do roadmap de cobrança e automações.
 
 ## Para que serve
-Resolve a necessidade de organizar e centralizar as visitas hospitalares da equipe médica. Substitui planilhas manuais instáveis por um banco de dados relacional seguro. Facilita o controle de visitas diárias, faturamento mensal, e monitoramento do tempo de internação dos pacientes nos vários hospitais de atuação.
+Resolve a necessidade de organizar e centralizar as visitas hospitalares da equipe médica. Substitui planilhas manuais instáveis por um banco de dados relacional seguro. Facilita o controle de visitas diárias, faturamento mensal, conciliação de pagamentos e monitoramento do tempo de internação nos vários hospitais de atuação.
 
 ## Quem usa e como
-1. **Médicos (`doctor`):** Fazem login com email e senha. Acessam a tela inicial para registrar rapidamente as visitas do dia, adicionar novos pacientes ou atualizar pacientes ativos. Também editam dados e excluem registros caso necessário.
-2. **Gestores e Secretárias (`manager`):** Fazem login e têm acesso *somente-leitura*. Consultam a Ficha de Pacientes, a Visão Calendário e exportam faturamentos em CSV. O banco bloqueia qualquer tentativa de escrita via API para este cargo, além do bloqueio de interface (botões escondidos).
+1. **Admin (`admin`):** Tem acesso ao núcleo completo do sistema. Hoje é o perfil que enxerga Repasse, Conciliação e o link do módulo de Ambulatório.
+2. **Médicos (`doctor`):** Fazem login com email e senha. Acessam o fluxo operacional do censo para registrar visitas, atualizar pacientes ativos, editar dados clínico-operacionais e trabalhar o calendário.
+3. **Gestores e Secretárias (`manager`):** Fazem login e têm acesso *somente-leitura* ao núcleo do censo. Consultam a Ficha de Pacientes e a Visão Calendário. O banco bloqueia qualquer tentativa de escrita via API para este cargo, além do bloqueio de interface.
 
 ## Stack técnica
 - **Frontend**: HTML5, CSS3 (Vanilla) e JavaScript puro (ES6+). Zero bundlers.
-- **Dados**: Supabase (PostgreSQL) com tabelas `patients`, `historico` e `profiles`.
+- **Dados**: Supabase (PostgreSQL) com núcleo em `patients`, `historico`, `profiles`, `relatorios` e tabelas de repasse.
 - **Hospedagem**: Vercel.
-- **Integrações**: Supabase Auth (Autenticação JWT) e Row Level Security (RLS) para proteção pesada dos dados no Back-end.
+- **Integrações**: Supabase Auth (Autenticação JWT), Row Level Security (RLS), Gemini para conciliação de PDFs e bibliotecas client-side para exportação PDF/Excel.
 
 ## Estrutura de arquivos
 - `index.html`: Estrutura principal do painel da SPA. Todos os modais e telas estão aqui.
@@ -22,9 +23,17 @@ Resolve a necessidade de organizar e centralizar as visitas hospitalares da equi
 - `styles.css`: CSS Global e Design System do app. Inclui classes utilitárias, CSS Variables de cor e responsividade.
 - `script.js`: Toda a lógica de negócio do painel (operações CRUD, filtros, renderizações, event delegation, UX/Toasts).
 - `login.js`: Lógica exclusiva da tela de login (Autenticação do Supabase).
+- `repasse.js`: Módulo isolado do fechamento mensal e geração de PDFs de repasse.
+- `conciliacao.js`: Módulo de conciliação de faturamento com extração via Gemini e exportação Excel.
+- `ambulatorio.html`: Entrada standalone do módulo de consultas ambulatoriais.
+- `ambulatorio.js`: Bootstrap inicial do módulo de ambulatório.
 - `vercel.json`: Arquivo de configuração da Vercel para roteamento (fallback) adequado.
 - `BROWNFIELD_MAPPING.md`: Mapeamento amplo da arquitetura, fluxos, regras de negócio e riscos do sistema.
 - `.specs/codebase/`: Documentação brownfield fatiada por tema (`ARCHITECTURE`, `STRUCTURE`, `CONCERNS`, `TESTING`, etc.).
+- `.specs/project/`: Estado, roadmap e visão executiva do projeto.
+- `docs/plans/`: Planos operacionais e decisões recentes das próximas fases.
+- `docs/fluxograma-funcionamento-apphosp.md`: Fluxo consolidado do produto separando atual, parcial e planejado.
+- `docs/fluxograma-funcionamento-apphosp.html`: Versão visual do fluxograma para abrir no navegador.
 
 ## Variáveis de ambiente necessárias
 As chaves públicas exigidas pelo frontend (Supabase) estão *hardcoded* em `script.js` e `login.js` propositalmente por ser um frontend estático estrito sem backend Node.
@@ -46,7 +55,7 @@ O deploy é contínuo e automático via **Vercel**.
 4. A Vercel interceptará o push e atualizará o domínio oficial em poucos segundos.
 
 ## Decisões técnicas importantes
-- **Segurança Dupla (RBAC + RLS):** O acesso é verificado no Frontend via atributo `role-manager` no `body` (para sumir com a UI de edição de quem apenas lê) E no Backend pelo Supabase RLS (Row Level Security), com policies que checam o `role` do `auth.users` via `profiles`.
+- **Segurança Dupla (RBAC + RLS):** O acesso é verificado no Frontend via classe de role no `body` E no Backend pelo Supabase RLS (Row Level Security), com decisões de interface e dados guiadas por `profiles.role`.
 - **Prevenção XSS:** Todo dado injetado no DOM que vem do banco (`innerHTML`) passa por uma função utilitária local `esc(str)` que intercepta tags HTML e scripts maliciosos.
 - **Sem frameworks/Bundlers:** Por uma escolha de arquitetura pautada na simplicidade máxima, não se usa React, Vue, Webpack ou Vite. 
 - **Event Delegation:** Todos os eventos da SPA (cliques em botões, aberturas de modal, ações nas tabelas) estão acorrentados em um único `document.addEventListener` global usando `data-action` visando estrita performance de memória.
@@ -58,14 +67,43 @@ O deploy é contínuo e automático via **Vercel**.
 - [x] Ficha completa de pacientes com pesquisa dinâmica dos Internados x Alta.
 - [x] Lógica de reinternação (nova cobrança = novo paciente único e separado).
 - [x] Calendário detalhado dia a dia e exportação CSV granular por Médico.
+- [x] Relatório textual de internação com persistência em banco.
+- [x] Repasse mensal com configuração, histórico, PDFs geral e por médico.
+- [x] Conciliação de faturamento para HSL com extração de PDF via Gemini e exportação Excel.
 - [x] UX unificado com Design System, Toasts animados e **Bottom Tab Bar mobile** (ícones + labels).
 - [x] Cabeçalho mobile otimizado com botão Sair discreto e logo centralizado.
 - [x] Bloqueador para evitar duplo clique em interações assíncronas (race condition).
 - [x] Segurança em Banco de Dados (Policies RLS).
 
+## Funcionalidades parciais / em implantação
+- [~] Módulo de **Consultas Ambulatoriais** com página dedicada (`ambulatorio.html`) e bootstrap inicial.
+- [~] Migration executável do ambulatório em `scripts/fase1-migration-execute.sql`.
+- [~] Documentação operacional do rollout de auth, schema e RLS do ambulatório em `docs/plans/`.
+
 ## Próximos passos planejados
-- Configurar envio automatizado do CSV mensalmente para e-mail da secretária.
-- Adicionar dashboard visual (Gráficos) com totais do Mês por Hospital.
+- Prioridade 1: concluir o go-live do módulo de **Consultas Ambulatoriais**.
+- Prioridade 2: especificar e implementar **Cobrança de Particulares**.
+- Prioridade 3: expandir a **Conciliação** para Hospital Vila Nova.
+- Prioridade 4: estruturar **WhatsApp + Automações**, após definição de número comercial, API e templates.
+
+## Estado atual do planejamento
+- A trilha ativa continua sendo **Consultas Ambulatoriais**.
+- A feature já possui `spec.md`, `tasks.md` e `design.md` em `.specs/features/consultas-ambulatoriais/`.
+- A migration da feature está documentada em `.specs/features/consultas-ambulatoriais/migration.sql` e também existe uma versão executável local em `scripts/fase1-migration-execute.sql`.
+- O desenho de banco dessa feature inclui:
+  - nova tabela `ambulatorio_config`
+  - nova tabela `consultas_ambulatoriais`
+  - novo campo `doctor_name` em `profiles`
+- As regras já fechadas para o ambulatório são:
+  - `manager` cadastra e edita tudo
+  - `doctor` cadastra/edita apenas consultas conjuntas nas quais ele é o médico responsável
+  - status iniciais: `pendente`, `pago`, `parcial`
+  - `valor_recebido` é único por consulta
+  - em consulta conjunta, o médico sempre recebe `R$ 600,00` bruto
+- O estado operacional detalhado dessa fase está em:
+  - `docs/plans/2026-04-07-ambulatorio-operational-execution-plan.md`
+  - `docs/plans/2026-04-07-ambulatorio-auth-rollout-temp-users.md`
+  - `.specs/project/STATE.md`
 
 ---
 
@@ -88,4 +126,10 @@ O deploy é contínuo e automático via **Vercel**.
 - Nomes dos pacientes inseridos por médicos podem variar na digitação (ex: "Maria Silva" vs "Maria da Silva"). Por isso, o "Atalho Rápido" é fornecido para reuso dos itens correntes.
 
 **Próxima feature prioritária:**
-- O desenvolvimento deverá focar em manter as integrações e fluxos estáveis. Caso requisitado modificações, adicione constantes no JS e altere lá (nunca `<option>` hardcoded).
+- A próxima feature prioritária é **Consultas Ambulatoriais**.
+- Antes de implementar, consultar:
+  - `.specs/features/consultas-ambulatoriais/spec.md`
+  - `.specs/features/consultas-ambulatoriais/tasks.md`
+  - `.specs/features/consultas-ambulatoriais/design.md`
+  - `.specs/features/consultas-ambulatoriais/migration.sql`
+- O próximo passo operacional do módulo é concluir migration, seed de `doctor_name` e seguir para a UI funcional completa.

@@ -506,8 +506,8 @@ function renderRepasseEntrada() {
     return `
       <tr class="${isExcluido ? 'paciente-excluido' : ''}" data-idx="${idx}">
         <td data-label="Paciente" style="white-space:nowrap;">
-          <button class="rep-expand-btn" data-idx="${idx}" title="Detalhes"
-            style="background:none;border:none;cursor:pointer;font-size:0.7rem;padding:0 4px 0 0;color:var(--color-text-secondary);vertical-align:middle;">${expanded ? '▼' : '▶'}</button>${nome}
+           <button class="rep-expand-btn" data-idx="${idx}" title="Detalhes"
+             style="background:none;border:none;cursor:pointer;font-size:0.7rem;padding:0 4px 0 0;color:var(--color-text-secondary);vertical-align:middle;">${expanded ? '▼' : '▶'}</button>${esc(nome)}
         </td>
         <td data-label="Início">
           <input type="date" class="rep-periodo-inicio" value="${pac.periodo_inicio || ''}" data-idx="${idx}">
@@ -515,7 +515,7 @@ function renderRepasseEntrada() {
         <td data-label="Fim">
           <input type="date" class="rep-periodo-fim" value="${pac.periodo_fim || ''}" data-idx="${idx}">
         </td>
-        <td data-label="Hospital">${pac.hospital || '—'}</td>
+        <td data-label="Hospital">${esc(pac.hospital) || '—'}</td>
         <td data-label="Status" class="financeiro-only">
           <select class="rep-status" data-idx="${idx}">${statusSelect}</select>
         </td>
@@ -589,11 +589,11 @@ function renderPag1(dados, pacientesIncluidos) {
     const fim = pac.periodo_fim ? new Date(pac.periodo_fim + 'T00:00:00').toLocaleDateString('pt-BR') : 'Internado';
     return `
       <tr>
-        <td>${nome}</td>
-        <td>${inicio} – ${fim}</td>
-        <td>${pac.status_pagamento || '—'}</td>
+        <td>${esc(nome)}</td>
+        <td>${esc(inicio)} – ${esc(fim)}</td>
+        <td>${esc(pac.status_pagamento) || '—'}</td>
         <td style="text-align:right;">${pac.valor_recebido != null ? formatBRL(pac.valor_recebido) : '—'}</td>
-        <td>${pac.hospital || '—'}</td>
+        <td>${esc(pac.hospital) || '—'}</td>
       </tr>
     `;
   }).join('');
@@ -671,9 +671,9 @@ function renderPag2(medico, dados) {
     const valorRepasse = dados.valorPorVisita * info.visitas;
     return `
       <tr>
-        <td>${nome}</td>
+        <td>${esc(nome)}</td>
         <td style="text-align:center;">${info.visitas}</td>
-        <td style="font-size:0.8rem;">${datasFormatadas}</td>
+        <td style="font-size:0.8rem;">${esc(datasFormatadas)}</td>
         <td style="text-align:right;">${formatBRL(valorRepasse)}</td>
       </tr>
     `;

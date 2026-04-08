@@ -375,14 +375,14 @@ function concRenderTable(resultados) {
   resultados.forEach(function(r) {
     var cssClass = CONC_STATUS_COLORS[r.status] || '';
     html += '<tr class="' + cssClass + '">' +
-      '<td>' + (r.nome_pdf || '') + '</td>' +
-      '<td>' + (r.nome_supabase || '') + '</td>' +
+      '<td>' + esc(r.nome_pdf || '') + '</td>' +
+      '<td>' + esc(r.nome_supabase || '') + '</td>' +
       '<td>' + (r.score_match != null ? r.score_match : '') + '</td>' +
       '<td>' + r.datas_esperadas.length + '</td>' +
       '<td>' + r.datas_pagas.length + '</td>' +
       '<td>' + r.datas_nao_pagas.join(', ') + '</td>' +
       '<td>' + r.datas_extras.join(', ') + '</td>' +
-      '<td>' + r.status + '</td>' +
+      '<td>' + esc(r.status) + '</td>' +
       '</tr>';
   });
 
@@ -466,8 +466,8 @@ async function concProcessar() {
     return;
   }
 
-  // Save API key for next time
-  localStorage.setItem('geminiApiKey', apiKey);
+  // Save API key for the current session only
+  sessionStorage.setItem('geminiApiKey', apiKey);
 
   try {
     // 1. Extract from PDF
@@ -497,8 +497,8 @@ async function concProcessar() {
 // === INIT ===
 
 function initConciliacao() {
-  // Restore saved API key
-  var savedKey = localStorage.getItem('geminiApiKey');
+  // Restore saved API key from session instead of local storage
+  var savedKey = sessionStorage.getItem('geminiApiKey');
   var keyInput = document.getElementById('conciliacao-gemini-key');
   if (savedKey && keyInput) {
     keyInput.value = savedKey;

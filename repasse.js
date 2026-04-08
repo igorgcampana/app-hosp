@@ -3,8 +3,10 @@ let repasseConfig = null;
 let repasseFatura = null;
 let repassePacientes = [];
 let historicoMes = [];
+let ambulatorioMes = []; // T22 — consultas ambulatoriais do mês (lidas de consultas_ambulatoriais)
 let _saveTimer = null;
 let _expandedRows = new Set();
+const AMB_COLS = 'id, paciente_nome, data_consulta, medico, conjunta, valor_total, valor_medico, valor_samira, imposto_medico, imposto_samira, administracao_medico, valor_liquido_medico, valor_liquido_samira, status_pagamento, valor_recebido';
 
 // === HELPERS ===
 function getSelectedMesAno() {
@@ -409,6 +411,14 @@ async function baixarPDFHistorico(mes, ano, btn) {
       .from('historico').select('id, patient_id, data, medico, visitas')
       .gte('data', primeiroDia).lte('data', ultimoDiaStr);
 
+    // T23 — Carregar consultas ambulatoriais para o mês do histórico
+    const { data: ambData, error: ambError } = await supabaseClient
+      .from('consultas_ambulatoriais')
+      .select(AMB_COLS)
+      .gte('data_consulta', primeiroDia).lte('data_consulta', ultimoDiaStr);
+    if (ambError) console.error('Erro ambulatório (PDF):', ambError);
+    const ambResumo = calcAmbulatorioResumo(ambData || []);
+
     // Resolver nomes dos pacientes
     const pacientesComNome = (pacientes || []).map(p => ({
       ...p,
@@ -430,8 +440,8 @@ async function baixarPDFHistorico(mes, ano, btn) {
     const _cfg = repasseConfig, _hist = historicoMes;
     historicoMes = historico || [];
 
-    tmp.innerHTML = renderPag1(dados, pacientesRelatorio) +
-      medicosComVisitas.map(m => renderPag2(m, dados)).join('');
+    tmp.innerHTML = renderPag1(dados, pacientesRelatorio, ambResumo) +
+      medicosComVisitas.map(m => renderPag2(m, dados, ambResumo)).join('');
 
     repasseConfig = _cfg;
     historicoMes = _hist;
@@ -468,6 +478,59 @@ async function loadHistoricoMes(mes, ano) {
   }
   historicoMes = data || [];
   return historicoMes;
+}
+
+// === T22 — CONTRATO AMBULATÓRIO ↔ REPASSE ===
+// repasse.js lê diretamente da tabela `consultas_ambulatoriais` (Supabase).
+// Os valores (valor_liquido_medico, valor_liquido_samira, etc.) já vêm calculados
+// e armazenados no banco pelo módulo ambulatorio.js — aqui apenas somamos.
+async function loadAmbulatorioMes(mes, ano) {
+  const primeiroDia = `${ano}-${String(mes).padStart(2, '0')}-01`;
+  const ultimoDia = new Date(ano, mes, 0);
+  const ultimoDiaStr = `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia.getDate()).padStart(2, '0')}`;
+
+  const { data, error } = await supabaseClient
+    .from('consultas_ambulatoriais')
+    .select(AMB_COLS)
+    .gte('data_consulta', primeiroDia)
+    .lte('data_consulta', ultimoDiaStr);
+
+  if (error) {
+    console.error('Erro ao carregar ambulatório do mês:', error);
+    return [];
+  }
+  ambulatorioMes = data || [];
+  return ambulatorioMes;
+}
+
+// Agrega dados ambulatoriais para exibição no repasse
+function calcAmbulatorioResumo(consultas) {
+  if (!consultas || consultas.length === 0) return null;
+
+  const totalConsultas = consultas.length;
+  const totalBruto = consultas.reduce((s, c) => s + (Number(c.valor_total) || 0), 0);
+  const totalLiqMedicos = consultas.reduce((s, c) => s + (Number(c.valor_liquido_medico) || 0), 0);
+  const totalLiqSamira = consultas.reduce((s, c) => s + (Number(c.valor_liquido_samira) || 0), 0);
+
+  // Agrupar por médico (apenas consultas conjuntas têm médico)
+  const porMedico = {};
+  consultas.forEach(c => {
+    if (c.conjunta && c.medico) {
+      if (!porMedico[c.medico]) {
+        porMedico[c.medico] = { consultas: 0, valorLiquido: 0 };
+      }
+      porMedico[c.medico].consultas++;
+      porMedico[c.medico].valorLiquido += Number(c.valor_liquido_medico) || 0;
+    }
+  });
+
+  return {
+    totalConsultas,
+    totalBruto,
+    totalLiqMedicos,
+    totalLiqSamira,
+    porMedico
+  };
 }
 
 // === T10 — RENDER TABELA DE ENTRADA ===
@@ -576,7 +639,7 @@ function renderRepasseEntrada() {
 }
 
 // === T15 — RENDER PÁG. 1 (FATURA DETALHADA) ===
-function renderPag1(dados, pacientesIncluidos) {
+function renderPag1(dados, pacientesIncluidos, ambResumo) {
   const { mes, ano } = getSelectedMesAno();
   const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
     'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -616,6 +679,18 @@ function renderPag1(dados, pacientesIncluidos) {
         <div class="calc-line"><span>Valor por Visita</span><span>${formatBRL(dados.valorPorVisita)}</span></div>
       </div>
 
+      ${ambResumo ? `
+      <h4 style="margin-top:2rem; margin-bottom:0.75rem; font-family:var(--font-title); color:var(--color-primary); font-size:1.05rem;">
+        Ambulatório
+      </h4>
+      <div class="repasse-calc-card">
+        <div class="calc-line"><span>Total de Consultas</span><span>${ambResumo.totalConsultas}</span></div>
+        <div class="calc-line"><span>Valor Total Bruto</span><span>${formatBRL(ambResumo.totalBruto)}</span></div>
+        <div class="calc-line"><span>Total Líquido Médicos</span><span>${formatBRL(ambResumo.totalLiqMedicos)}</span></div>
+        <div class="calc-line"><span>Total Líquido Dra. Samira</span><span>${formatBRL(ambResumo.totalLiqSamira)}</span></div>
+      </div>
+      ` : ''}
+
       <table style="width:100%; border-collapse:collapse; margin-top:1.5rem;">
         <thead>
           <tr>
@@ -642,7 +717,7 @@ function renderPag1(dados, pacientesIncluidos) {
 }
 
 // === T16 — RENDER PÁG. 2 POR MÉDICO ===
-function renderPag2(medico, dados) {
+function renderPag2(medico, dados, ambResumo) {
   const info = (repasseConfig.medicos && repasseConfig.medicos[medico]) || {};
   const nomeCompleto = info.nome_completo || medico;
   const crm = info.crm || '—';
@@ -720,6 +795,17 @@ function renderPag2(medico, dados) {
           </tr>
         </tfoot>
       </table>
+
+      ${ambResumo && ambResumo.porMedico[medico] ? `
+      <h4 style="margin-top:2rem; margin-bottom:0.75rem; font-family:var(--font-title); color:var(--color-primary); font-size:1rem;">
+        Consultas Ambulatoriais
+      </h4>
+      <div class="repasse-calc-card">
+        <div class="calc-line"><span>Consultas Conjuntas</span><span>${ambResumo.porMedico[medico].consultas}</span></div>
+        <div class="calc-line"><span>Valor Líquido Ambulatório</span><span>${formatBRL(ambResumo.porMedico[medico].valorLiquido)}</span></div>
+      </div>
+      ` : ''}
+
       <div class="repasse-assinatura">
         <p class="repasse-assinatura-label">Assinatura Digital — ${nomeCompleto}</p>
         <canvas class="assinatura-canvas" data-medico="${medico}" width="500" height="130"></canvas>
@@ -836,6 +922,8 @@ async function gerarRelatorio() {
 
   // Carregar histórico do mês
   await loadHistoricoMes(mes, ano);
+  // T23 — Carregar consultas ambulatoriais do mês
+  await loadAmbulatorioMes(mes, ano);
 
   if (historicoMes.length === 0) {
     showToast('Nenhuma visita registrada neste mês');
@@ -859,10 +947,13 @@ async function gerarRelatorio() {
   const container = document.querySelector('#screen-repasse .repasse-relatorio');
   if (!container) return;
 
-  let html = renderPag1(dados, pacientesRelatorio);
+  // T23 — Agregar ambulatório (null se não houver consultas)
+  const ambResumo = calcAmbulatorioResumo(ambulatorioMes);
+
+  let html = renderPag1(dados, pacientesRelatorio, ambResumo);
 
   for (const medico of medicosComVisitas) {
-    html += renderPag2(medico, dados);
+    html += renderPag2(medico, dados, ambResumo);
   }
 
   container.innerHTML = html;

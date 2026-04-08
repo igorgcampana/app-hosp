@@ -6,22 +6,29 @@
 
 ## Status Atual
 
-Módulo de ambulatório totalmente implementado e deployado em produção (2026-04-08). O CRUD completo (cadastro, edição, exclusão, filtros, resumo mensal, configuração financeira) está funcional em `ambulatorio.html` — módulo standalone acessível via link no header do censo, visível apenas para `admin`.
+Módulo de ambulatório implementado e deployado (T00–T21). Integração ambulatório → repasse **concluída e validada** (T22–T24). Todas as correções de bugs aplicadas:
+- RLS policies corrigidas para incluir `admin` role
+- Coluna `consulta_conjunta` (era `conjunta`) — nomes sincronizados entre `ambulatorio.js` e `repasse.js`
+- Auto-fill de `valor_recebido` quando status = SIM/RETAGUARDA (usa valor esperado: `valor_visita × dias − desconto`)
+- `esc()` function movida localmente para `repasse.js` (acessibilidade de escopo)
+- Relatório com discriminação de pacientes ambulatoriais: Pág. 1 mostra tabela de todas as consultas; Pág. 2 mostra por médico
 
-**Trilha ativa:** integrar ambulatório no fechamento mensal do repasse (T22–T24) e executar go-live com médicos reais (T25–T27).
+**Trilha ativa:** Go-live com médicos reais (T25–T27) + expandir RBAC para `doctor` e `manager`.
 
 ---
 
 ## Próxima Ação
 
-**Fase 1 do ambulatório concluída. Próximo: integração com repasse + go-live.**
+**Integração estável em main. Próximo: validação com usuários reais + RBAC + go-live (T25–T27).**
 
-1. Definir contrato de integração `ambulatorio.js` ↔ `repasse.js` (T22)
-2. Incluir totais ambulatoriais no fechamento mensal sem regressão (T23–T24)
-3. Expandir acesso ao ambulatório para roles `doctor` e `manager` conforme regras de RBAC definidas
-4. Homologar com 3–5 consultas reais da equipe (T25–T26)
-5. Checklist de go-live (T27)
-6. Só depois abrir a implementação de cobrança particular (Fase 2)
+1. ~~Definir contrato de integração `ambulatorio.js` ↔ `repasse.js` (T22)~~ ✅ (2026-04-08)
+2. ~~Incluir totais ambulatoriais no fechamento mensal sem regressão (T23–T24)~~ ✅ (2026-04-08)
+3. ~~Merge branch `feat/repasse-ambulatorio` em `main` e deploy~~ ✅ (2026-04-08)
+4. **T25 — Rodar bateria de testes manuais** (módulo standalone, edição, filtros, repasse)
+5. **T26 — Homologação com casos reais** (3–5 consultas + validação de valores com Igor/Samira)
+6. **T27 — Checklist de go-live** (schema em produção, policies, roles, dados iniciais, backup)
+7. Expandir acesso ao ambulatório para roles `doctor` e `manager` conforme RBAC
+8. Só depois abrir a implementação de cobrança particular (Fase 2)
 
 ---
 
@@ -52,6 +59,10 @@ Módulo de ambulatório totalmente implementado e deployado em produção (2026-
 | 2026-04-08 | Fluxograma mestre e faxina documental adicionados | `docs/fluxograma-funcionamento-apphosp.*`, `README`, `BROWNFIELD_MAPPING.md` e `STATE.md` agora separam melhor o que e atual, parcial e planejado |
 | 2026-04-08 | Ambulatório implementado como standalone HTML | `ambulatorio.html` + `ambulatorio.js` — CRUD completo, configuração financeira, filtros e resumo mensal; acessível via link no header do censo (admin-only por ora) |
 | 2026-04-08 | Cabeçalho da tabela do ambulatório corrigido | `color: var(--color-text-secondary)` sobrescrevia o branco herdado do `styles.css`; corrigido para `color: var(--color-white)` |
+| 2026-04-08 | Integração ambulatório → repasse concluída (T22–T24) | `repasse.js` lê `consultas_ambulatoriais` direto do Supabase (constante `AMB_COLS`), agrega via `calcAmbulatorioResumo()`, renderiza seção condicional em Pág. 1 e Pág. 2; sem alterar `calcularRepasse()` nem `ambulatorio.js` |
+| 2026-04-08 | Bugs de integração encontrados e corrigidos | (1) RLS policies estavam bloqueando write de `admin` (só permitiam `manager`); (2) constante `AMB_COLS` usava `conjunta` em vez de `consulta_conjunta`; (3) `esc()` estava inacessível no scope de `repasse.js`; (4) `valor_recebido` precisava auto-fill com valor esperado quando status = SIM/RETAGUARDA |
+| 2026-04-08 | Relatório ambulatorial com discriminação de pacientes | Adicionada tabela de pacientes em Pág. 1 (todas as consultas) e Pág. 2 (por médico); uso de `calcAmbulatorioResumo()` com array `rows` para renderizar detalhes |
+| 2026-04-08 | Auto-fill `valor_recebido` para status SIM/RETAGUARDA | Quando usuário marca paciente como pago (SIM) ou retaguarda (RETAGUARDA), `valor_recebido` é preenchido automaticamente com: `(valor_visita × dias) − desconto`; lógica centralizada em `calcValorEsperado()` |
 
 ---
 

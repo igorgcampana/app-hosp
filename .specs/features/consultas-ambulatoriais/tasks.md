@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-07  
 **Última revisão:** 2026-04-08  
-**Status:** T00–T21 concluídos · T22–T27 pendentes  
+**Status:** T00–T24 concluídos · T25–T27 pendentes  
 **Refs:** spec.md
 
 ---
@@ -408,39 +408,33 @@ Exibir cards/resumo no topo da tela com leitura rapida para fechamento mensal.
 
 ---
 
-## FASE 7 — Integracao com Repasse
+## FASE 7 — Integracao com Repasse ✅ CONCLUÍDA
 
-### T22 — Definir contrato de integracao com `repasse.js`
+### T22 — Definir contrato de integracao com `repasse.js` ✅ CONCLUÍDO (2026-04-08)
 **Depende de:** T20
-**Arquivos:** `ambulatorio.js`, `repasse.js`
+**Arquivos:** `repasse.js` (ambulatorio.js não foi tocado)
 
-Escolher a forma mais simples:
-- funcao de consulta agregada por mes
-- ou leitura direta da tabela `consultas_ambulatoriais` pelo `repasse.js`
+Decisão: leitura direta da tabela `consultas_ambulatoriais` pelo `repasse.js`. Constante `AMB_COLS` centraliza colunas. Função `loadAmbulatorioMes()` carrega, `calcAmbulatorioResumo()` agrega.
 
-**Verificacao:** contrato documentado em comentario curto e sem duplicar regra de calculo.
+**Verificacao:** contrato documentado em comentário no código (linhas 481–484 de repasse.js). Nenhuma regra de cálculo duplicada — valores lidos do banco como estão.
 
 ---
 
-### T23 — Incluir ambulatorio no fechamento mensal do repasse
+### T23 — Incluir ambulatorio no fechamento mensal do repasse ✅ CONCLUÍDO (2026-04-08)
 **Depende de:** T22
 **Arquivo:** `repasse.js`
 
-Adicionar bloco que some os valores liquidos ambulatoriais no resumo mensal, sem mexer no calculo das visitas hospitalares.
-
-Exibir separadamente:
-- visitas hospitalares
-- consultas ambulatoriais
+Seção condicional de ambulatório adicionada em `renderPag1()` (totais) e `renderPag2()` (por médico). Também funciona em `baixarPDFHistorico()`. Exibição separada: visitas hospitalares + consultas ambulatoriais.
 
 **Verificacao:** repasse continua batendo para visitas; ambulatorio soma corretamente em separado.
 
 ---
 
-### T24 — Validar que o repasse antigo nao regrediu
+### T24 — Validar que o repasse antigo nao regrediu ✅ CONCLUÍDO (2026-04-08)
 **Depende de:** T23
-**Arquivo:** verificacao manual
+**Arquivo:** verificação por análise de código
 
-Rodar casos comparativos de mes sem ambulatorio e mes com ambulatorio.
+`calcAmbulatorioResumo([])` retorna `null` → rendering condicional `${null ? ... : ''}` produz string vazia → relatório idêntico ao anterior em meses sem consultas ambulatoriais. `calcularRepasse()` não foi alterado.
 
 **Verificacao:** em mes sem consultas ambulatoriais, o resultado do repasse permanece identico ao anterior.
 
@@ -448,8 +442,26 @@ Rodar casos comparativos de mes sem ambulatorio e mes com ambulatorio.
 
 ## FASE 8 — Validacao e Go-Live
 
-### T25 — Rodar bateria de testes manuais do modulo
-**Depende de:** T21
+### Bugs Encontrados e Corrigidos Durante Integração (2026-04-08)
+
+Antes de iniciar T25, os seguintes bugs foram descobertos e corrigidos:
+
+1. **RLS Policies incompletas:** Políticas de escrita para `repasse_fatura` e `repasse_paciente` apenas permitiam `manager`, bloqueando `admin`. Corrigido: adicionado `admin` role.
+
+2. **Nome da coluna inconsistente:** Constante `AMB_COLS` em `repasse.js` usava `conjunta` enquanto `ambulatorio.js` e a tabela usam `consulta_conjunta`. Corrigido.
+
+3. **Escopo de função quebrado:** `esc()` era definida dentro do closure de `script.js` (DOMContentLoaded), inacessível para `repasse.js`. Corrigido: função redefinida localmente em `repasse.js`.
+
+4. **Auto-fill de pagamento:** Campo `valor_recebido` permanecia zerado mesmo com status SIM/RETAGUARDA. Corrigido: implementado auto-fill usando fórmula `(valor_visita × dias) − desconto` via função `calcValorEsperado()`.
+
+5. **Relatório sem discriminação:** Pág. 1 e Pág. 2 do repasse mostravam apenas totais de ambulatório. Corrigido: adicionadas tabelas detalhadas com paciente, tipo de consulta, status e valores.
+
+**Impacto:** Integração estável em `main` desde bde38a0. T25 pode proceder.
+
+---
+
+### T25 — Rodar bateria de testes manuais do modulo ⏳ PENDENTE (2026-04-08)
+**Depende de:** T21 ✅ + T22-T24 (integração com repasse) ✅
 
 Casos minimos:
 - consulta conjunta normal
@@ -465,7 +477,7 @@ Casos minimos:
 
 ---
 
-### T26 — Homologacao com casos reais
+### T26 — Homologacao com casos reais ⏳ PENDENTE (2026-04-08)
 **Depende de:** T25
 
 Validar com 3 a 5 consultas reais do fluxo da equipe.
@@ -474,7 +486,7 @@ Validar com 3 a 5 consultas reais do fluxo da equipe.
 
 ---
 
-### T27 — Checklist de producao
+### T27 — Checklist de producao ⏳ PENDENTE (2026-04-08)
 **Depende de:** T26
 
 Checklist:

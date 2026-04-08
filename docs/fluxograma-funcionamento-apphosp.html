@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AppHosp - Fluxograma de Funcionamento</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --card: #ffffff;
+      --ink: #20313a;
+      --muted: #5f6b72;
+      --primary: #20515f;
+      --line: #d8e0e3;
+      --ok: #2e7d32;
+      --warn: #f39c12;
+      --plan: #4f6bed;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      background:
+        radial-gradient(circle at top left, rgba(32, 81, 95, 0.08), transparent 28%),
+        linear-gradient(180deg, #f7f4ee 0%, var(--bg) 100%);
+      color: var(--ink);
+    }
+
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 20px 72px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #20515f 0%, #2c6a7c 100%);
+      color: #fff;
+      border-radius: 28px;
+      padding: 28px 28px 24px;
+      box-shadow: 0 20px 50px rgba(32, 81, 95, 0.18);
+      margin-bottom: 24px;
+    }
+
+    .hero h1 {
+      margin: 0 0 10px;
+      font-size: clamp(2rem, 4vw, 3.2rem);
+      line-height: 1;
+      letter-spacing: -0.03em;
+    }
+
+    .hero p {
+      margin: 0;
+      max-width: 860px;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 1rem;
+      line-height: 1.6;
+    }
+
+    .legend {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 18px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .legend li {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+      font-size: 0.92rem;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .dot.ok { background: #7bd389; }
+    .dot.warn { background: #ffd166; }
+    .dot.plan { background: #9db2ff; }
+
+    .grid {
+      display: grid;
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(32, 81, 95, 0.09);
+      border-radius: 24px;
+      padding: 20px;
+      box-shadow: 0 12px 30px rgba(32, 81, 95, 0.08);
+    }
+
+    .card h2 {
+      margin: 0 0 8px;
+      font-size: 1.35rem;
+      color: var(--primary);
+    }
+
+    .card p {
+      margin: 0 0 16px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .mermaid {
+      overflow-x: auto;
+    }
+
+    .notes {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin-top: 20px;
+    }
+
+    .note {
+      border-radius: 18px;
+      padding: 16px;
+      background: #fbfaf7;
+      border: 1px solid var(--line);
+    }
+
+    .note strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--primary);
+      font-size: 0.95rem;
+    }
+
+    .note p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .footer {
+      margin-top: 22px;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.6;
+    }
+
+    code {
+      background: #eef3f4;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 0.92em;
+    }
+
+    @media (max-width: 700px) {
+      .wrap {
+        padding: 20px 14px 44px;
+      }
+
+      .hero,
+      .card {
+        border-radius: 20px;
+      }
+    }
+  </style>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'base',
+      securityLevel: 'loose',
+      themeVariables: {
+        background: '#ffffff',
+        primaryColor: '#e8f7ee',
+        primaryTextColor: '#1b4332',
+        primaryBorderColor: '#2e7d32',
+        lineColor: '#6b7f86',
+        secondaryColor: '#fff7e6',
+        tertiaryColor: '#eef3ff',
+        fontFamily: 'Georgia, Times New Roman, serif'
+      },
+      flowchart: {
+        curve: 'basis',
+        htmlLabels: true
+      }
+    });
+  </script>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>AppHosp</h1>
+      <p>
+        Mapa visual do funcionamento atual do projeto, com separacao clara entre o que ja roda no codigo,
+        o que esta em implantacao no ambulatorio e o que ainda pertence ao roadmap de bots e automacoes.
+      </p>
+      <ul class="legend">
+        <li><span class="dot ok"></span>Atual</li>
+        <li><span class="dot warn"></span>Parcial</li>
+        <li><span class="dot plan"></span>Planejado</li>
+      </ul>
+    </section>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Visao Geral</h2>
+        <p>Primeiro, o panorama das grandes areas do produto.</p>
+        <div class="mermaid">
+flowchart LR
+    classDef atual fill:#e8f7ee,stroke:#2e7d32,color:#1b4332,stroke-width:2px;
+    classDef parcial fill:#fff7e6,stroke:#f39c12,color:#8a5700,stroke-width:2px;
+    classDef planejado fill:#eef3ff,stroke:#4f6bed,color:#233876,stroke-width:2px;
+
+    A[Login e controle de acesso] --> B[Censo Hospitalar]
+    B --> C[Calendario e historico]
+    B --> D[Repasse mensal]
+    B --> E[Conciliacao de faturamento]
+    B --> F[Ambulatorio]
+    B --> G[Bots e automacoes]
+
+    class A,B,C,D,E atual;
+    class F parcial;
+    class G planejado;
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Fluxo Atual</h2>
+        <p>Este e o fluxo operacional que hoje bate com o codigo do repositorio.</p>
+        <div class="mermaid">
+flowchart TD
+    classDef atual fill:#e8f7ee,stroke:#2e7d32,color:#1b4332,stroke-width:2px;
+
+    A[Usuario faz login] --> B[Supabase Auth valida sessao]
+    B --> C[App busca role em profiles]
+    C --> D{Role}
+
+    D -->|admin| E[Ve Censo + Repasse + Conciliacao + link Ambulatorio]
+    D -->|doctor| F[Ve Censo operacional]
+    D -->|manager| G[Ve Ficha em modo leitura]
+
+    E --> H[index.html]
+    F --> H
+    G --> H
+
+    H --> I[Registro Diario]
+    H --> J[Ficha de Pacientes]
+    H --> K[Calendario]
+    H --> L[Repasse]
+    H --> M[Conciliacao]
+
+    I --> I1[Cria ou atualiza paciente]
+    I1 --> I2[Grava visitas em historico]
+    I2 --> I3[Recalcula datas do paciente]
+    I3 --> I4{Alta?}
+    I4 -->|sim| I5[Oferece relatorio textual manual]
+    I4 -->|nao| I6[Atualiza atalhos e telas]
+
+    J --> J1[Filtra, exporta CSV, edita paciente]
+    J --> J2[Abre e salva relatorio]
+
+    K --> K1[Consolida visitas por data e medico]
+    K1 --> K2[Permite editar ou excluir visita]
+    K1 --> K3[Exporta CSV]
+
+    L --> L1[Pre-popula mes]
+    L1 --> L2[Manager informa status e valores]
+    L2 --> L3[Calcula divisao de repasse]
+    L3 --> L4[Gera PDF geral e PDF por medico]
+
+    M --> M1[Usuario sobe PDF]
+    M1 --> M2[Gemini extrai dados]
+    M2 --> M3[App cruza com Supabase]
+    M3 --> M4[Mostra glosas e divergencias]
+    M4 --> M5[Exporta Excel]
+
+    class A,B,C,D,E,F,G,H,I,I1,I2,I3,I4,I5,I6,J,J1,J2,K,K1,K2,K3,L,L1,L2,L3,L4,M,M1,M2,M3,M4,M5 atual;
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Ambulatorio</h2>
+        <p>O modulo ja existe tecnicamente, mas ainda nao esta completo no fluxo do produto.</p>
+        <div class="mermaid">
+flowchart TD
+    classDef parcial fill:#fff7e6,stroke:#f39c12,color:#8a5700,stroke-width:2px;
+    classDef planejado fill:#eef3ff,stroke:#4f6bed,color:#233876,stroke-width:2px;
+
+    A[Link para ambulatorio] --> B[ambulatorio.html]
+    B --> C[Valida sessao]
+    C --> D[Busca role e doctor_name]
+    D --> E{Quem entra hoje?}
+    E -->|admin| F[Carrega ambulatorio_config]
+    E -->|doctor ou manager| G[Redireciona para index]
+
+    F --> H[Modulo sobe com estado inicial]
+    H --> I[Schema e RLS ja desenhados]
+    I --> J[Formulario de consulta]
+    J --> K[Historico e filtros]
+    K --> L[Resumo mensal]
+    L --> M[Integracao com repasse]
+
+    class A,B,C,D,E,F,G,H,I parcial;
+    class J,K,L,M planejado;
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Bots e Automacoes</h2>
+        <p>Esta e a arquitetura alvo descrita no plano de fases, ainda nao presente no codigo operacional.</p>
+        <div class="mermaid">
+flowchart TD
+    classDef planejado fill:#eef3ff,stroke:#4f6bed,color:#233876,stroke-width:2px;
+
+    A[Evento de negocio<br/>internacao ou alta] --> B[Tabelas de cobranca e log]
+    B --> C[Supabase Edge Functions]
+    C --> D[API WhatsApp externa]
+    D --> E[Bot de mensagens]
+
+    E --> F[Msg imediata de internacao]
+    E --> G[Cobranca 48h apos alta]
+    E --> H[Lembrete 24h para medico]
+    E --> I[Lista diaria para secretaria]
+
+    B --> J[PDF automatico de alta e cobranca]
+    E --> K[Painel de monitoramento]
+    K --> L[Retry em falhas]
+
+    class A,B,C,D,E,F,G,H,I,J,K,L planejado;
+        </div>
+      </section>
+    </div>
+
+    <section class="notes">
+      <div class="note">
+        <strong>O que ja existe</strong>
+        <p>Login, censo, calendario, repasse e conciliacao com PDF + Gemini.</p>
+      </div>
+      <div class="note">
+        <strong>O que esta parcial</strong>
+        <p>Ambulatorio com pagina, bootstrap, schema e RLS em preparacao.</p>
+      </div>
+      <div class="note">
+        <strong>O que ainda e roadmap</strong>
+        <p>WhatsApp, bots, cron, Edge Functions, cobrancas e automacoes.</p>
+      </div>
+    </section>
+
+    <p class="footer">
+      Se quiser editar os diagramas, a versao em markdown esta em
+      <code>docs/fluxograma-funcionamento-apphosp.md</code>.
+      Se preferir colar em outro lugar, qualquer bloco Mermaid desse arquivo funciona em GitHub,
+      Obsidian, Notion com Mermaid ou no <code>https://mermaid.live</code>.
+    </p>
+  </div>
+</body>
+</html>

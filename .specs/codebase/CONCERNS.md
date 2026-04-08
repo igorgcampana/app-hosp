@@ -92,6 +92,13 @@
 
 ## Fragile Areas
 
+### FA-0: Entry point do ambulatório ainda admin-only no núcleo principal
+
+**Location:** `index.html` + `script.js`
+**Evidence:** o módulo standalone `ambulatorio.html` está em go-live, mas o link no header do núcleo principal ainda segue visível apenas para `admin`
+**Risk:** desalinhamento entre a capacidade real do backend/RLS e o acesso percebido pelos usuários `doctor`/`manager`
+**Guidance:** manter documentado como trilha pós-go-live; ao abrir visibilidade para `doctor`/`manager`, validar novamente UX + RLS + navegação
+
 ### FA-1: Lógica de datas e timezone
 
 **Location:** `script.js` — `parseDate()`, construção manual de YYYY-MM-DD

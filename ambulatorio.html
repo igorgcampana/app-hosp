@@ -121,6 +121,52 @@
     }
     .amb-config-actions .btn-primary { width: auto; }
 
+    /* Monthly summary */
+    .amb-summary-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .amb-summary-subtitle {
+      color: var(--color-text-secondary);
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      margin: 0.35rem 0 0;
+    }
+    .amb-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 0.85rem;
+    }
+    .amb-summary-card {
+      background: linear-gradient(180deg, #ffffff 0%, #f6fbfb 100%);
+      border: 1px solid rgba(32, 81, 95, 0.08);
+      border-radius: var(--radius-md);
+      padding: 0.9rem 1rem;
+      box-shadow: 0 8px 22px rgba(32, 81, 95, 0.06);
+    }
+    .amb-summary-label {
+      display: block;
+      color: var(--color-text-secondary);
+      font-family: var(--font-title);
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      margin-bottom: 0.4rem;
+      text-transform: uppercase;
+    }
+    .amb-summary-value {
+      display: block;
+      color: var(--color-primary);
+      font-family: var(--font-title);
+      font-size: 1.3rem;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+
     /* Consulta conjunta toggle */
     .amb-toggle-row {
       display: flex;
@@ -403,11 +449,13 @@
       .amb-main { padding: 1rem 0.75rem; }
       .amb-breakdown-grid { grid-template-columns: 1fr; }
       .amb-config-grid { grid-template-columns: 1fr 1fr; }
+      .amb-summary-grid { grid-template-columns: 1fr 1fr; }
       .amb-filters { flex-direction: column; }
       .amb-filters .form-group { min-width: 100%; }
     }
     @media (max-width: 480px) {
       .amb-config-grid { grid-template-columns: 1fr; }
+      .amb-summary-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -451,6 +499,38 @@
         </div>
         <div class="amb-config-actions" id="amb-config-actions" style="display:none;">
           <button class="btn-primary" id="amb-config-save">Salvar Configurações</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Monthly Summary -->
+    <div class="card">
+      <div class="amb-summary-header">
+        <div>
+          <h3>Resumo do Período</h3>
+          <p class="amb-summary-subtitle" id="amb-summary-periodo">Base completa</p>
+        </div>
+      </div>
+      <div class="amb-summary-grid">
+        <div class="amb-summary-card">
+          <span class="amb-summary-label">Consultas</span>
+          <span class="amb-summary-value" id="amb-summary-total-consultas">0</span>
+        </div>
+        <div class="amb-summary-card">
+          <span class="amb-summary-label">Conjuntas / Samira</span>
+          <span class="amb-summary-value" id="amb-summary-tipos">0 / 0</span>
+        </div>
+        <div class="amb-summary-card">
+          <span class="amb-summary-label">Valor Bruto</span>
+          <span class="amb-summary-value" id="amb-summary-bruto">R$ 0,00</span>
+        </div>
+        <div class="amb-summary-card">
+          <span class="amb-summary-label">Líquido Médicos</span>
+          <span class="amb-summary-value" id="amb-summary-liquido-medico">R$ 0,00</span>
+        </div>
+        <div class="amb-summary-card">
+          <span class="amb-summary-label">Líquido Samira</span>
+          <span class="amb-summary-value" id="amb-summary-liquido-samira">R$ 0,00</span>
         </div>
       </div>
     </div>

@@ -58,6 +58,11 @@
   - **Backend (segurança):** Policies RLS bloqueiam INSERT/UPDATE/DELETE para role `manager`
 **Example:** `body.role-manager [data-action="edit-patient"] { display: none !important; }`
 
+**Ambulatório (estado atual):**
+  - **Backend/RLS:** `doctor` pode gravar e editar apenas consultas conjuntas em que `profiles.doctor_name = medico`; `admin`/`manager` mantêm controle total
+  - **Frontend standalone:** `ambulatorio.js` já expõe edição própria para `doctor`
+  - **Entry point principal:** o link do ambulatório no header do núcleo segue visível apenas para `admin`, então a expansão visual para `doctor`/`manager` continua como trilha pós-go-live
+
 ### Fetch-All-Then-Filter
 
 **Location:** `script.js` — `fetchAllData()` (linhas 315-347)
@@ -109,6 +114,8 @@ Seleção de período → renderCalendar()
 - `repasse.js` — cálculo financeiro e geração de PDFs
 - `conciliacao.js` — reconciliação de faturamento
 - `ambulatorio.html` + `ambulatorio.js` — módulo standalone completo (655 + 608 linhas)
+- `docs/ambulatorio-go-live-checklist-2026-04-08.md` — fechamento operacional do go-live do ambulatório
+- `backups/ambulatorio-go-live-2026-04-08/` — snapshots locais de configuração, consultas e roles
 - `styles.css` — design system + responsivo (902 linhas)
 
 **Module boundaries:** O projeto está em transição de um monolito para um núcleo com módulos por domínio:
@@ -121,4 +128,4 @@ Seleção de período → renderCalendar()
 7. Exportação CSV
 8. Repasse (`repasse.js`)
 9. Conciliação (`conciliacao.js`)
-10. Ambulatório (`ambulatorio.js` — módulo standalone completo com CRUD, configuração financeira, filtros e resumo mensal)
+10. Ambulatório (`ambulatorio.js` — módulo standalone completo com CRUD, configuração financeira, filtros, resumo mensal e edição própria do doctor)

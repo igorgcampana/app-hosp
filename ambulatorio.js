@@ -99,8 +99,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     doctorName: profile?.doctor_name || null,
   };
 
-  const canEdit = role === 'admin' || role === 'manager';
+  const canEdit = role === 'admin' || role === 'manager' || role === 'doctor';
   const canDelete = role === 'admin' || role === 'manager';
+
+  function canEditConsulta(consulta) {
+    if (!consulta) return false;
+    if (role === 'admin' || role === 'manager') return true;
+    return role === 'doctor'
+      && consulta.consulta_conjunta
+      && !!state.doctorName
+      && consulta.medico === state.doctorName;
+  }
+
+  function canDeleteConsulta() {
+    return canDelete;
+  }
 
   // ─── Load config ──────────────────────────────────────────────────
   try {
@@ -310,6 +323,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   function startEdit(id) {
     const c = state.consultas.find(x => x.id === id);
     if (!c) return;
+    if (!canEditConsulta(c)) {
+      showToast('Sem permissão para editar esta consulta', 'error');
+      return;
+    }
 
     state.editingId = id;
     elFormTitle.textContent = 'Editar Consulta';
@@ -434,6 +451,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   function requestDelete(id) {
     const c = state.consultas.find(x => x.id === id);
     if (!c) return;
+    if (!canDeleteConsulta(c)) {
+      showToast('Sem permissão para excluir esta consulta', 'error');
+      return;
+    }
     pendingDeleteId = id;
     elDeleteMsg.textContent = `Excluir consulta de ${c.paciente_nome} em ${fmtDate(c.data_consulta)}?`;
     elDeleteModal.style.display = '';
@@ -474,6 +495,51 @@ document.addEventListener('DOMContentLoaded', async () => {
   const elFilterMedico = document.getElementById('filter-medico');
   const elFilterStatus = document.getElementById('filter-status');
 
+  const elSummaryPeriodo = document.getElementById('amb-summary-periodo');
+  const elSummaryTotalConsultas = document.getElementById('amb-summary-total-consultas');
+  const elSummaryTipos = document.getElementById('amb-summary-tipos');
+  const elSummaryBruto = document.getElementById('amb-summary-bruto');
+  const elSummaryLiquidoMedico = document.getElementById('amb-summary-liquido-medico');
+  const elSummaryLiquidoSamira = document.getElementById('amb-summary-liquido-samira');
+
+  function getResumoPeriodoLabel() {
+    const de = elFilterDe.value;
+    const ate = elFilterAte.value;
+    if (de && ate) return `${fmtDate(de)} - ${fmtDate(ate)}`;
+    if (de) return `A partir de ${fmtDate(de)}`;
+    if (ate) return `Até ${fmtDate(ate)}`;
+    return 'Base completa';
+  }
+
+  function calcResumo(consultas) {
+    return consultas.reduce((acc, c) => {
+      acc.totalConsultas += 1;
+      acc.totalBruto += Number(c.valor_total) || 0;
+      acc.totalLiquidoMedico += Number(c.valor_liquido_medico) || 0;
+      acc.totalLiquidoSamira += Number(c.valor_liquido_samira) || 0;
+      if (c.consulta_conjunta) acc.totalConjuntas += 1;
+      else acc.totalExclusivas += 1;
+      return acc;
+    }, {
+      totalConsultas: 0,
+      totalConjuntas: 0,
+      totalExclusivas: 0,
+      totalBruto: 0,
+      totalLiquidoMedico: 0,
+      totalLiquidoSamira: 0,
+    });
+  }
+
+  function renderResumo(consultas) {
+    const resumo = calcResumo(consultas);
+    elSummaryPeriodo.textContent = getResumoPeriodoLabel();
+    elSummaryTotalConsultas.textContent = String(resumo.totalConsultas);
+    elSummaryTipos.textContent = `${resumo.totalConjuntas} / ${resumo.totalExclusivas}`;
+    elSummaryBruto.textContent = fmt(resumo.totalBruto);
+    elSummaryLiquidoMedico.textContent = fmt(resumo.totalLiquidoMedico);
+    elSummaryLiquidoSamira.textContent = fmt(resumo.totalLiquidoSamira);
+  }
+
   function getFilteredConsultas() {
     let list = state.consultas;
     const de = elFilterDe.value;
@@ -511,9 +577,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const elTableBody = document.getElementById('amb-table-body');
   const elThAcoes = document.getElementById('th-acoes');
 
-  // Hide actions column for doctor (can't edit/delete)
-  if (role === 'doctor') elThAcoes.style.display = 'none';
-
   async function loadConsultas() {
     const { data, error } = await supabaseClient
       .from('consultas_ambulatoriais')
@@ -533,6 +596,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderHistorico() {
     const filtered = getFilteredConsultas();
+    renderResumo(filtered);
 
     if (filtered.length === 0) {
       elHistEmpty.style.display = '';
@@ -571,13 +635,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       tdStatus.appendChild(badge);
       tr.appendChild(tdStatus);
 
-      // Actions (admin/manager only)
-      if (canEdit || canDelete) {
+      const canEditRow = canEditConsulta(c);
+      const canDeleteRow = canDeleteConsulta(c);
+
+      if (canEditRow || canDeleteRow) {
         const tdActions = document.createElement('td');
         const wrap = document.createElement('div');
         wrap.className = 'amb-row-actions';
 
-        if (canEdit) {
+        if (canEditRow) {
           const btnEdit = document.createElement('button');
           btnEdit.className = 'amb-btn-icon';
           btnEdit.title = 'Editar';
@@ -585,7 +651,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           btnEdit.addEventListener('click', () => startEdit(c.id));
           wrap.appendChild(btnEdit);
         }
-        if (canDelete) {
+        if (canDeleteRow) {
           const btnDel = document.createElement('button');
           btnDel.className = 'amb-btn-icon delete';
           btnDel.title = 'Excluir';
@@ -596,10 +662,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         tdActions.appendChild(wrap);
         tr.appendChild(tdActions);
+      } else if (canEdit || canDelete) {
+        const tdActions = document.createElement('td');
+        tdActions.textContent = '—';
+        tr.appendChild(tdActions);
       }
 
       elTableBody.appendChild(tr);
     }
+
+    elThAcoes.style.display = canEdit || canDelete ? '' : 'none';
   }
 
   // ─── Boot ─────────────────────────────────────────────────────────

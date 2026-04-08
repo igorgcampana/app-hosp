@@ -26,7 +26,8 @@ AppHosp/
 ├── ambulatorio.js        # Bootstrap atual do ambulatório
 ├── login.js              # Lógica de autenticação (65 linhas)
 ├── styles.css            # Design system + responsivo (902 linhas)
-├── docs/                 # Planos operacionais e fluxogramas
+├── backups/              # Exports locais e evidências operacionais
+├── docs/                 # Planos operacionais, fluxogramas e checklists
 ├── scripts/              # SQL e scripts auxiliares
 ├── manifest.json         # PWA metadata
 ├── robots.txt            # SEO (noindex login)
@@ -80,6 +81,16 @@ AppHosp/
 - `.specs/project/PROJECT.md` — visão executiva de produto e roadmap
 - `.specs/project/STATE.md` — estado corrente e próxima ação
 - `docs/fluxograma-funcionamento-apphosp.md` — mapa atual/parcial/planejado
+- `docs/ambulatorio-go-live-checklist-2026-04-08.md` — evidências e checklist final do go-live do ambulatório
+
+### Backups Operacionais
+
+**Purpose:** Registrar snapshots locais antes/depois de etapas sensíveis
+**Location:** `backups/`
+**Key files:**
+- `backups/ambulatorio-go-live-2026-04-08/ambulatorio_config.json` — export da configuração do ambulatório no fechamento do go-live
+- `backups/ambulatorio-go-live-2026-04-08/consultas_ambulatoriais.json` — export das consultas do ambulatório no fechamento do go-live
+- `backups/ambulatorio-go-live-2026-04-08/profiles_ambulatorio_roles.json` — export dos perfis/roles relevantes ao ambulatório
 
 ### Deploy & Config
 
@@ -122,8 +133,12 @@ AppHosp/
 - Lógica: `conciliacao.js`
 
 **Ambulatório:**
-- UI: `ambulatorio.html` (acessado via link no header do censo, visível para admin)
-- Lógica: `ambulatorio.js` (CRUD, cálculo financeiro, filtros, resumo)
+- UI: `ambulatorio.html` (módulo standalone; no entrypoint principal o link segue visível apenas para admin)
+- Lógica: `ambulatorio.js` (CRUD, cálculo financeiro, filtros, resumo, edição própria do doctor)
+
+**Checklist e backup do go-live do ambulatório:**
+- Evidência: `docs/ambulatorio-go-live-checklist-2026-04-08.md`
+- Exports: `backups/ambulatorio-go-live-2026-04-08/`
 
 **Relatórios:**
 - UI: `index.html` → `#relatorio-modal`

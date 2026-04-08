@@ -19,6 +19,10 @@ SUPABASE_ANON_KEY = 'eyJhbGc...' (chave pública anon — segura para frontend)
 | `patients` | SELECT, INSERT, UPDATE, DELETE | doctor: full; manager: SELECT only |
 | `historico` | SELECT, INSERT, UPDATE, DELETE | doctor: full; manager: SELECT only |
 | `profiles` | SELECT | Todos autenticados |
+| `ambulatorio_config` | SELECT, UPDATE | leitura autenticada; escrita `admin`/`manager` |
+| `consultas_ambulatoriais` | SELECT, INSERT, UPDATE, DELETE | `admin`/`manager`: controle total; `doctor`: consultas conjuntas proprias |
+| `repasse_fatura` | SELECT, INSERT, UPDATE, DELETE | `admin`/`manager` |
+| `repasse_paciente` | SELECT, INSERT, UPDATE, DELETE | `admin`/`manager` |
 
 ### Endpoints Supabase Consumidos
 
@@ -34,6 +38,21 @@ SUPABASE_ANON_KEY = 'eyJhbGc...' (chave pública anon — segura para frontend)
 - `supabaseClient.from('historico').update().eq('id', id)` — editar visita
 - `supabaseClient.from('historico').delete().eq('id', id)` — remover visita
 - `supabaseClient.from('profiles').select('role').eq('id', userId)` — buscar role
+- `supabaseClient.from('ambulatorio_config').select('*').single()` — carregar configuração financeira do ambulatório
+- `supabaseClient.from('ambulatorio_config').update()` — salvar percentuais do ambulatório
+- `supabaseClient.from('consultas_ambulatoriais').select('*')` — listar histórico do ambulatório
+- `supabaseClient.from('consultas_ambulatoriais').insert()` — registrar consulta ambulatorial
+- `supabaseClient.from('consultas_ambulatoriais').update().eq('id', id)` — editar consulta ambulatorial
+- `supabaseClient.from('consultas_ambulatoriais').delete().eq('id', id)` — excluir consulta ambulatorial
+
+### Operação de Go-Live
+
+Durante o fechamento do go-live do ambulatório em 2026-04-08, houve leitura segura com `service_role` apenas para auditoria operacional e export local de evidências.
+
+**Artefatos gerados:**
+- `backups/ambulatorio-go-live-2026-04-08/ambulatorio_config.json`
+- `backups/ambulatorio-go-live-2026-04-08/consultas_ambulatoriais.json`
+- `backups/ambulatorio-go-live-2026-04-08/profiles_ambulatorio_roles.json`
 
 ## Supabase SDK (CDN)
 

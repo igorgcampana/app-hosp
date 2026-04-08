@@ -268,10 +268,24 @@ async function deletePaciente(id) {
 }
 
 // === RESUMO DO HEADER ===
+function calcValorEsperado(p) {
+  const valorVisita = Number(p.valor_visita) || 0;
+  const qtd = calcQtdVisitas(p.periodo_inicio, p.periodo_fim);
+  const desconto = Number(p.desconto_paciente) || 0;
+  return Math.max(0, valorVisita * qtd - desconto);
+}
+
 function recalcularTotal() {
   const total = repassePacientes
-    .filter(p => p.incluido && p.status_pagamento !== 'NÃO' && Number(p.valor_recebido) > 0)
-    .reduce((s, p) => s + (Number(p.valor_recebido) || 0), 0);
+    .filter(p => p.incluido && p.status_pagamento !== 'NÃO')
+    .reduce((s, p) => {
+      const status = p.status_pagamento;
+      if (status === 'SIM' || status === 'RETAGUARDA') {
+        const esperado = calcValorEsperado(p);
+        return s + (esperado > 0 ? esperado : (Number(p.valor_recebido) || 0));
+      }
+      return s + (Number(p.valor_recebido) || 0);
+    }, 0);
   const input = document.getElementById('repasse-valor-total');
   if (input) input.value = total > 0 ? formatBRL(total) : '';
   return total;
@@ -1235,11 +1249,7 @@ document.addEventListener('DOMContentLoaded', () => {
         repassePacientes[idx].status_pagamento = novoStatus;
         // Auto-fill: SIM/RETAGUARDA → valor_recebido = valor esperado líquido
         if (novoStatus === 'SIM' || novoStatus === 'RETAGUARDA') {
-          const pac = repassePacientes[idx];
-          const valorVisita = Number(pac.valor_visita) || 0;
-          const qtd = calcQtdVisitas(pac.periodo_inicio, pac.periodo_fim);
-          const desconto = Number(pac.desconto_paciente) || 0;
-          const esperado = valorVisita * qtd - desconto;
+          const esperado = calcValorEsperado(repassePacientes[idx]);
           if (esperado > 0) repassePacientes[idx].valor_recebido = esperado;
         }
         renderRepasseEntrada();

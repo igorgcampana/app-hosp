@@ -22,7 +22,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const userRole = profile?.role || 'doctor';
   window.userRole = userRole;
-  console.log("Usuário logado:", session.user.email, "| Papel:", userRole);
 
   // Update user display
   const userEmailDisplay = document.getElementById('user-email');
@@ -414,6 +413,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function applyRolePermissions(role) {
     document.body.classList.add('role-' + role);
+
+    // Admin: mostra link para Ambulatorio
+    if (role === 'admin') {
+      const linkAmb = document.getElementById('link-ambulatorio');
+      if (linkAmb) linkAmb.style.display = '';
+    }
 
     // Doctor e Manager: sem Repasse e Conciliacao
     if (role === 'doctor' || role === 'manager') {

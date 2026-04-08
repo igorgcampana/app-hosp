@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Ambulatório - AppHosp</title>
+
+  <meta name="theme-color" content="#20515F">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;500;600;700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300;1,400&display=swap"
+    rel="stylesheet">
+
+  <!-- Supabase CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <link rel="stylesheet" href="styles.css">
+
+  <style>
+    body { visibility: hidden; }
+
+    /* Header */
+    .amb-header {
+      background-color: var(--color-primary);
+      color: var(--color-white);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: var(--shadow-md);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .amb-header h1 {
+      color: var(--color-white);
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .amb-header-actions {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+    }
+    .amb-link-censo {
+      color: var(--color-secondary);
+      font-family: var(--font-title);
+      font-size: 0.85rem;
+      text-decoration: none;
+      opacity: 0.8;
+      transition: opacity 0.2s;
+    }
+    .amb-link-censo:hover { opacity: 1; }
+    .amb-btn-logout {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.3);
+      color: var(--color-secondary);
+      font-family: var(--font-title);
+      font-size: 0.85rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    .amb-btn-logout:hover {
+      border-color: rgba(255,255,255,0.6);
+      color: var(--color-white);
+    }
+
+    /* Main */
+    .amb-main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 1.5rem 1rem;
+      padding-bottom: 3rem;
+    }
+
+    /* Config toggle */
+    .amb-config-toggle {
+      background: none;
+      border: none;
+      font-family: var(--font-title);
+      font-size: 0.85rem;
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.25rem 0;
+      margin-bottom: 0.5rem;
+    }
+    .amb-config-toggle:hover { color: var(--color-primary); }
+    .amb-config-toggle .arrow { transition: transform 0.2s; }
+    .amb-config-toggle.open .arrow { transform: rotate(90deg); }
+
+    .amb-config-body { display: none; }
+    .amb-config-body.open { display: block; }
+
+    .amb-config-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+    }
+    .amb-config-grid .form-group { min-width: 0; margin-bottom: 0; }
+    .amb-config-grid input { text-align: right; }
+    .amb-config-grid input[readonly] {
+      background-color: var(--color-background);
+      color: var(--color-text-secondary);
+    }
+
+    .amb-config-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 1rem;
+    }
+    .amb-config-actions .btn-primary { width: auto; }
+
+    /* Consulta conjunta toggle */
+    .amb-toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.5rem 0;
+    }
+    .amb-switch {
+      position: relative;
+      width: 48px;
+      height: 26px;
+      flex-shrink: 0;
+    }
+    .amb-switch input { opacity: 0; width: 0; height: 0; }
+    .amb-switch .slider {
+      position: absolute;
+      inset: 0;
+      background-color: var(--color-border);
+      border-radius: 26px;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    .amb-switch .slider::before {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      left: 3px;
+      bottom: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: var(--transition);
+    }
+    .amb-switch input:checked + .slider { background-color: var(--color-primary); }
+    .amb-switch input:checked + .slider::before { transform: translateX(22px); }
+
+    /* Financial breakdown */
+    .amb-breakdown {
+      background: var(--color-background);
+      border-radius: var(--radius-md);
+      padding: 1rem 1.25rem;
+      margin-top: 0.5rem;
+    }
+    .amb-breakdown h4 {
+      font-size: 0.95rem;
+      margin-bottom: 0.75rem;
+      color: var(--color-primary);
+    }
+    .amb-breakdown-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem 2rem;
+    }
+    .amb-breakdown-item {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      padding: 0.25rem 0;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .amb-breakdown-item span:first-child {
+      color: var(--color-text-secondary);
+      font-family: var(--font-title);
+      font-weight: 500;
+    }
+    .amb-breakdown-item span:last-child {
+      font-weight: 600;
+      color: var(--color-text-main);
+    }
+    .amb-breakdown-item.total {
+      border-bottom: 2px solid var(--color-primary);
+      padding-bottom: 0.35rem;
+    }
+    .amb-breakdown-item.total span:last-child {
+      color: var(--color-primary);
+    }
+
+    /* History table */
+    .amb-table-wrapper {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .amb-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    .amb-table th {
+      font-family: var(--font-title);
+      font-weight: 600;
+      font-size: 0.8rem;
+      color: var(--color-text-secondary);
+      text-align: left;
+      padding: 0.75rem 0.5rem;
+      border-bottom: 2px solid var(--color-border);
+      white-space: nowrap;
+    }
+    .amb-table td {
+      padding: 0.65rem 0.5rem;
+      border-bottom: 1px solid var(--color-background);
+      white-space: nowrap;
+    }
+    .amb-table tbody tr:hover { background-color: var(--color-background); }
+
+    .amb-status {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 12px;
+      font-family: var(--font-title);
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .amb-status.pendente { background: #fef3c7; color: #92400e; }
+    .amb-status.pago { background: #d1fae5; color: #065f46; }
+    .amb-status.parcial { background: #dbeafe; color: #1e40af; }
+
+    .amb-empty-msg {
+      text-align: center;
+      padding: 2rem 1rem;
+      color: var(--color-text-secondary);
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+    }
+
+    /* Filters */
+    .amb-filters {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+      align-items: flex-end;
+    }
+    .amb-filters .form-group {
+      min-width: 0;
+      flex: 1;
+      margin-bottom: 0;
+    }
+    .amb-filters label { font-size: 0.78rem; margin-bottom: 0.3rem; }
+    .amb-filters input,
+    .amb-filters select { padding: 0.5rem 0.65rem; font-size: 0.85rem; }
+    .amb-filter-clear {
+      background: none;
+      border: 1px solid var(--color-border);
+      color: var(--color-text-secondary);
+      font-family: var(--font-title);
+      font-size: 0.8rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: var(--transition);
+    }
+    .amb-filter-clear:hover {
+      border-color: var(--color-primary);
+      color: var(--color-primary);
+    }
+
+    /* Row actions */
+    .amb-row-actions {
+      display: flex;
+      gap: 0.35rem;
+    }
+    .amb-btn-icon {
+      background: none;
+      border: 1px solid var(--color-border);
+      border-radius: 6px;
+      padding: 0.3rem 0.45rem;
+      cursor: pointer;
+      font-size: 0.8rem;
+      line-height: 1;
+      transition: var(--transition);
+      color: var(--color-text-secondary);
+    }
+    .amb-btn-icon:hover { border-color: var(--color-primary); color: var(--color-primary); }
+    .amb-btn-icon.delete:hover { border-color: #dc2626; color: #dc2626; }
+
+    /* Edit mode indicator */
+    .amb-form-title { display: flex; align-items: center; gap: 0.75rem; }
+    .amb-cancel-edit {
+      background: none;
+      border: 1px solid var(--color-border);
+      color: var(--color-text-secondary);
+      font-family: var(--font-title);
+      font-size: 0.8rem;
+      padding: 0.3rem 0.65rem;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    .amb-cancel-edit:hover { border-color: #dc2626; color: #dc2626; }
+
+    /* Confirm modal */
+    .amb-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9998;
+    }
+    .amb-modal {
+      background: var(--color-white);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      max-width: 380px;
+      width: 90%;
+      box-shadow: var(--shadow-lg);
+    }
+    .amb-modal h4 {
+      margin-bottom: 0.75rem;
+      font-size: 1.1rem;
+    }
+    .amb-modal p {
+      font-size: 0.9rem;
+      color: var(--color-text-secondary);
+      margin-bottom: 1.25rem;
+    }
+    .amb-modal-actions {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: flex-end;
+    }
+    .amb-modal-actions button {
+      font-family: var(--font-title);
+      font-size: 0.9rem;
+      font-weight: 600;
+      padding: 0.5rem 1rem;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    .amb-btn-cancel-modal {
+      background: none;
+      border: 1px solid var(--color-border);
+      color: var(--color-text-secondary);
+    }
+    .amb-btn-confirm-delete {
+      background: #dc2626;
+      border: none;
+      color: white;
+    }
+    .amb-btn-confirm-delete:hover { background: #b91c1c; }
+
+    /* Toast */
+    .amb-toast {
+      position: fixed;
+      bottom: 1.5rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      padding: 0.75rem 1.5rem;
+      border-radius: var(--radius-md);
+      font-family: var(--font-title);
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: white;
+      z-index: 9999;
+      transition: transform 0.3s ease;
+      pointer-events: none;
+    }
+    .amb-toast.show { transform: translateX(-50%) translateY(0); }
+    .amb-toast.success { background-color: #059669; }
+    .amb-toast.error { background-color: #dc2626; }
+
+    /* Form error */
+    .amb-field-error {
+      color: #dc2626;
+      font-size: 0.78rem;
+      margin-top: 0.25rem;
+      font-family: var(--font-title);
+    }
+    input.invalid, select.invalid {
+      border-color: #dc2626;
+      box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .amb-header { padding: 0.75rem 1rem; }
+      .amb-header h1 { font-size: 1.2rem; }
+      .amb-main { padding: 1rem 0.75rem; }
+      .amb-breakdown-grid { grid-template-columns: 1fr; }
+      .amb-config-grid { grid-template-columns: 1fr 1fr; }
+      .amb-filters { flex-direction: column; }
+      .amb-filters .form-group { min-width: 100%; }
+    }
+    @media (max-width: 480px) {
+      .amb-config-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Header -->
+  <header class="amb-header">
+    <h1>Ambulatório</h1>
+    <div class="amb-header-actions">
+      <a href="index.html" class="amb-link-censo">Censo Hospitalar</a>
+      <button id="amb-logout" class="amb-btn-logout">Sair</button>
+    </div>
+  </header>
+
+  <!-- Content -->
+  <main class="amb-main">
+
+    <!-- Config Card -->
+    <div class="card" id="amb-config-card">
+      <button class="amb-config-toggle" id="amb-config-toggle">
+        <span class="arrow">&#9654;</span> Configurações Financeiras
+      </button>
+      <div class="amb-config-body" id="amb-config-body">
+        <div class="amb-config-grid">
+          <div class="form-group">
+            <label>Valor fixo médico (conjunta)</label>
+            <input type="text" id="cfg-valor-fixo" readonly value="R$ 600,00">
+          </div>
+          <div class="form-group">
+            <label>% Imposto Médico</label>
+            <input type="number" id="cfg-imposto-medico" step="0.01" min="0" max="100">
+          </div>
+          <div class="form-group">
+            <label>% Imposto Samira</label>
+            <input type="number" id="cfg-imposto-samira" step="0.01" min="0" max="100">
+          </div>
+          <div class="form-group">
+            <label>% Administração Médico</label>
+            <input type="number" id="cfg-adm-medico" step="0.01" min="0" max="100">
+          </div>
+        </div>
+        <div class="amb-config-actions" id="amb-config-actions" style="display:none;">
+          <button class="btn-primary" id="amb-config-save">Salvar Configurações</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Form Card -->
+    <div class="card">
+      <div class="amb-form-title">
+        <h3 id="amb-form-title">Nova Consulta</h3>
+        <button type="button" class="amb-cancel-edit" id="amb-cancel-edit" style="display:none;">Cancelar edição</button>
+      </div>
+
+      <form id="amb-form" autocomplete="off">
+        <div class="form-row">
+          <div class="form-group" style="flex:2;">
+            <label for="amb-paciente">Paciente *</label>
+            <input type="text" id="amb-paciente" placeholder="Nome do paciente" required>
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label for="amb-data">Data *</label>
+            <input type="date" id="amb-data" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <div class="amb-toggle-row">
+              <label class="amb-switch">
+                <input type="checkbox" id="amb-conjunta" checked>
+                <span class="slider"></span>
+              </label>
+              <label for="amb-conjunta" style="margin-bottom:0; cursor:pointer;">Consulta Conjunta</label>
+            </div>
+          </div>
+          <div class="form-group" id="amb-medico-group">
+            <label for="amb-medico">Médico *</label>
+            <select id="amb-medico" required>
+              <option value="">Selecione...</option>
+              <option value="Igor">Igor</option>
+              <option value="Beatriz">Beatriz</option>
+              <option value="Eduardo">Eduardo</option>
+              <option value="Tamires">Tamires</option>
+              <option value="Felipe Reinaldo">Felipe Reinaldo</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="amb-valor-total">Valor Total (R$) *</label>
+            <input type="number" id="amb-valor-total" step="0.01" min="0" placeholder="0,00" required>
+          </div>
+          <div class="form-group">
+            <label for="amb-status">Status Pagamento</label>
+            <select id="amb-status">
+              <option value="pendente">Pendente</option>
+              <option value="pago">Pago</option>
+              <option value="parcial">Parcial</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="amb-valor-recebido">Valor Recebido (R$)</label>
+            <input type="number" id="amb-valor-recebido" step="0.01" min="0" value="0">
+          </div>
+        </div>
+
+        <div class="form-group" style="min-width:100%;">
+          <label for="amb-obs">Observações</label>
+          <textarea id="amb-obs" rows="2" placeholder="Opcional"
+            style="font-family:var(--font-body); padding:0.75rem 1rem; border:1px solid var(--color-border); border-radius:var(--radius-md); background:#fafafa; color:var(--color-text-main); font-size:1rem; resize:vertical;"></textarea>
+        </div>
+
+        <!-- Financial Breakdown -->
+        <div class="amb-breakdown" id="amb-breakdown">
+          <h4>Demonstrativo Financeiro</h4>
+          <div class="amb-breakdown-grid">
+            <div>
+              <div class="amb-breakdown-item">
+                <span>Valor Médico</span>
+                <span id="calc-valor-medico">R$ 0,00</span>
+              </div>
+              <div class="amb-breakdown-item">
+                <span>Imposto Médico</span>
+                <span id="calc-imposto-medico">R$ 0,00</span>
+              </div>
+              <div class="amb-breakdown-item">
+                <span>Adm. Médico</span>
+                <span id="calc-adm-medico">R$ 0,00</span>
+              </div>
+              <div class="amb-breakdown-item total">
+                <span>Líquido Médico</span>
+                <span id="calc-liquido-medico">R$ 0,00</span>
+              </div>
+            </div>
+            <div>
+              <div class="amb-breakdown-item">
+                <span>Valor Samira</span>
+                <span id="calc-valor-samira">R$ 0,00</span>
+              </div>
+              <div class="amb-breakdown-item">
+                <span>Imposto Samira</span>
+                <span id="calc-imposto-samira">R$ 0,00</span>
+              </div>
+              <div class="amb-breakdown-item" style="visibility:hidden;">
+                <span>&nbsp;</span><span>&nbsp;</span>
+              </div>
+              <div class="amb-breakdown-item total">
+                <span>Líquido Samira</span>
+                <span id="calc-liquido-samira">R$ 0,00</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:1.25rem;">
+          <button type="submit" class="btn-primary" id="amb-form-submit">Salvar Consulta</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- History Card -->
+    <div class="card">
+      <h3>Histórico de Consultas</h3>
+
+      <!-- Filters -->
+      <div class="amb-filters" id="amb-filters">
+        <div class="form-group">
+          <label for="filter-data-de">De</label>
+          <input type="date" id="filter-data-de">
+        </div>
+        <div class="form-group">
+          <label for="filter-data-ate">Até</label>
+          <input type="date" id="filter-data-ate">
+        </div>
+        <div class="form-group">
+          <label for="filter-medico">Médico</label>
+          <select id="filter-medico">
+            <option value="">Todos</option>
+            <option value="Igor">Igor</option>
+            <option value="Beatriz">Beatriz</option>
+            <option value="Eduardo">Eduardo</option>
+            <option value="Tamires">Tamires</option>
+            <option value="Felipe Reinaldo">Felipe Reinaldo</option>
+            <option value="__samira__">Só Samira (exclusiva)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="filter-status">Status</label>
+          <select id="filter-status">
+            <option value="">Todos</option>
+            <option value="pendente">Pendente</option>
+            <option value="pago">Pago</option>
+            <option value="parcial">Parcial</option>
+          </select>
+        </div>
+        <button class="amb-filter-clear" id="filter-clear">Limpar</button>
+      </div>
+
+      <div id="amb-historico">
+        <p class="amb-empty-msg" id="amb-historico-empty">Carregando...</p>
+        <div class="amb-table-wrapper" id="amb-table-wrapper" style="display:none;">
+          <table class="amb-table">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Paciente</th>
+                <th>Conjunta</th>
+                <th>Médico</th>
+                <th>Total</th>
+                <th>Líq. Médico</th>
+                <th>Líq. Samira</th>
+                <th>Status</th>
+                <th id="th-acoes">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="amb-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete confirm modal -->
+    <div class="amb-modal-overlay" id="amb-delete-modal" style="display:none;">
+      <div class="amb-modal">
+        <h4>Excluir consulta?</h4>
+        <p id="amb-delete-msg">Tem certeza que deseja excluir esta consulta? Esta ação não pode ser desfeita.</p>
+        <div class="amb-modal-actions">
+          <button class="amb-btn-cancel-modal" id="amb-delete-cancel">Cancelar</button>
+          <button class="amb-btn-confirm-delete" id="amb-delete-confirm">Excluir</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Toast -->
+  <div class="amb-toast" id="amb-toast"></div>
+
+  <script src="ambulatorio.js"></script>
+</body>
+
+</html>

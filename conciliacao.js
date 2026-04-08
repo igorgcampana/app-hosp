@@ -64,25 +64,25 @@ function concNormalize(name) {
 
 function concParseDate(dateStr) {
   // Parse DD/MM/YYYY to Date object
-  var parts = dateStr.split('/').map(Number);
+  let parts = dateStr.split('/').map(Number);
   return new Date(parts[2], parts[1] - 1, parts[0]);
 }
 
 function concFormatDate(date) {
   // Format Date object to DD/MM/YYYY
-  var d = String(date.getDate()).padStart(2, '0');
-  var m = String(date.getMonth() + 1).padStart(2, '0');
-  var y = date.getFullYear();
+  let d = String(date.getDate()).padStart(2, '0');
+  let m = String(date.getMonth() + 1).padStart(2, '0');
+  let y = date.getFullYear();
   return d + '/' + m + '/' + y;
 }
 
 function concDateRange(startStr, endStr) {
   // Generate Set of date strings (DD/MM/YYYY) from start to end inclusive
-  var start = concParseDate(startStr);
-  var end = concParseDate(endStr);
+  let start = concParseDate(startStr);
+  let end = concParseDate(endStr);
   if (start > end) return new Set();
-  var dates = new Set();
-  var current = new Date(start);
+  let dates = new Set();
+  let current = new Date(start);
   while (current <= end) {
     dates.add(concFormatDate(current));
     current.setDate(current.getDate() + 1);
@@ -99,15 +99,15 @@ function concSortDates(dates) {
 
 function concParseSupabaseDate(dateStr) {
   // Convert YYYY-MM-DD to DD/MM/YYYY
-  var parts = dateStr.split('-');
+  let parts = dateStr.split('-');
   return parts[2] + '/' + parts[1] + '/' + parts[0];
 }
 
 function concReadFileAsBase64(file) {
   return new Promise(function(resolve, reject) {
-    var reader = new FileReader();
+    let reader = new FileReader();
     reader.onload = function() {
-      var base64 = reader.result.split(',')[1];
+      let base64 = reader.result.split(',')[1];
       resolve(base64);
     };
     reader.onerror = reject;
@@ -118,9 +118,9 @@ function concReadFileAsBase64(file) {
 // === GEMINI EXTRACTION ===
 
 async function concExtractFromPdf(file, apiKey) {
-  var base64 = await concReadFileAsBase64(file);
+  let base64 = await concReadFileAsBase64(file);
 
-  var body = {
+  let body = {
     contents: [{
       parts: [
         { inline_data: { mime_type: 'application/pdf', data: base64 } },
@@ -133,23 +133,23 @@ async function concExtractFromPdf(file, apiKey) {
     },
   };
 
-  var maxRetries = 3;
-  for (var attempt = 0; attempt < maxRetries; attempt++) {
+  let maxRetries = 3;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      var response = await fetch(CONC_GEMINI_URL + '?key=' + apiKey, {
+      let response = await fetch(CONC_GEMINI_URL + '?key=' + apiKey, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 
       if (!response.ok) {
-        var errText = await response.text();
+        let errText = await response.text();
         throw new Error('HTTP ' + response.status + ': ' + errText);
       }
 
-      var result = await response.json();
-      var text = result.candidates[0].content.parts[0].text;
-      var data = JSON.parse(text);
+      let result = await response.json();
+      let text = result.candidates[0].content.parts[0].text;
+      let data = JSON.parse(text);
 
       if (!data.pacientes || data.pacientes.length === 0) {
         throw new Error('Gemini retornou lista de pacientes vazia.');
@@ -158,7 +158,7 @@ async function concExtractFromPdf(file, apiKey) {
       return data;
     } catch (e) {
       if (attempt < maxRetries - 1) {
-        var wait = Math.pow(2, attempt + 1) * 1000;
+        let wait = Math.pow(2, attempt + 1) * 1000;
         await new Promise(function(r) { setTimeout(r, wait); });
       } else {
         throw new Error('Falha na extracao apos ' + maxRetries + ' tentativas: ' + e.message);
@@ -171,16 +171,16 @@ async function concExtractFromPdf(file, apiKey) {
 
 async function concFetchPatients(periodoInicio, periodoFim) {
   // Convert DD/MM/YYYY to YYYY-MM-DD for Supabase query
-  var inicio = concParseDate(periodoInicio);
-  var fim = concParseDate(periodoFim);
-  var inicioIso = inicio.getFullYear() + '-' +
+  let inicio = concParseDate(periodoInicio);
+  let fim = concParseDate(periodoFim);
+  let inicioIso = inicio.getFullYear() + '-' +
     String(inicio.getMonth() + 1).padStart(2, '0') + '-' +
     String(inicio.getDate()).padStart(2, '0');
-  var fimIso = fim.getFullYear() + '-' +
+  let fimIso = fim.getFullYear() + '-' +
     String(fim.getMonth() + 1).padStart(2, '0') + '-' +
     String(fim.getDate()).padStart(2, '0');
 
-  var response = await supabaseClient
+  let response = await supabaseClient
     .from('patients')
     .select('pacientenome, dataprimeiraavaliacao, dataultimavisita')
     .eq('hospital', 'HSL')
@@ -201,21 +201,21 @@ async function concFetchPatients(periodoInicio, periodoFim) {
 // === MATCHER ===
 
 function concCalcExpectedDates(pacSupa, periodoInicio, periodoFim) {
-  var pInicio = concParseDate(periodoInicio);
-  var pFim = concParseDate(periodoFim);
-  var sInicio = concParseDate(concParseSupabaseDate(pacSupa.data_inicio));
-  var sFim = concParseDate(concParseSupabaseDate(pacSupa.data_fim));
+  let pInicio = concParseDate(periodoInicio);
+  let pFim = concParseDate(periodoFim);
+  let sInicio = concParseDate(concParseSupabaseDate(pacSupa.data_inicio));
+  let sFim = concParseDate(concParseSupabaseDate(pacSupa.data_fim));
 
-  var inicio = pInicio > sInicio ? pInicio : sInicio;
-  var fim = pFim < sFim ? pFim : sFim;
+  let inicio = pInicio > sInicio ? pInicio : sInicio;
+  let fim = pFim < sFim ? pFim : sFim;
 
   if (inicio > fim) return new Set();
   return concDateRange(concFormatDate(inicio), concFormatDate(fim));
 }
 
 function concClassify(datasNaoPagas, datasExtras) {
-  var hasMissing = datasNaoPagas.length > 0;
-  var hasExtra = datasExtras.length > 0;
+  let hasMissing = datasNaoPagas.length > 0;
+  let hasExtra = datasExtras.length > 0;
   if (hasMissing && hasExtra) return 'Glosa + Pagamento a Maior';
   if (hasMissing) return 'Glosa';
   if (hasExtra) return 'Pagamento a Maior';
@@ -236,25 +236,25 @@ function concNotFound(nomePdf, datasPagas) {
 }
 
 function concReconcile(dadosPdf, dadosSupabase) {
-  var periodoInicio = dadosPdf.periodo_inicio;
-  var periodoFim = dadosPdf.periodo_fim;
+  let periodoInicio = dadosPdf.periodo_inicio;
+  let periodoFim = dadosPdf.periodo_fim;
 
   // Build lookup structures
-  var supaNormalized = {};
-  var supaByOriginal = {};
+  let supaNormalized = {};
+  let supaByOriginal = {};
   dadosSupabase.forEach(function(p) {
-    var norm = concNormalize(p.nome);
+    let norm = concNormalize(p.nome);
     supaNormalized[norm] = p.nome;
     supaByOriginal[p.nome] = p;
   });
 
-  var supaNormKeys = Object.keys(supaNormalized);
-  var matchedSupabase = {};
-  var results = [];
+  let supaNormKeys = Object.keys(supaNormalized);
+  let matchedSupabase = {};
+  let results = [];
 
   dadosPdf.pacientes.forEach(function(pacPdf) {
-    var nomePdf = pacPdf.nome;
-    var datasPagas = new Set(pacPdf.datas);
+    let nomePdf = pacPdf.nome;
+    let datasPagas = new Set(pacPdf.datas);
 
     if (supaNormKeys.length === 0) {
       results.push(concNotFound(nomePdf, datasPagas));
@@ -262,31 +262,31 @@ function concReconcile(dadosPdf, dadosSupabase) {
     }
 
     // Fuzzy match using fuzzball
-    var normalizedPdf = concNormalize(nomePdf);
-    var matches = fuzzball.extract(normalizedPdf, supaNormKeys, {
+    let normalizedPdf = concNormalize(nomePdf);
+    let matches = fuzzball.extract(normalizedPdf, supaNormKeys, {
       scorer: fuzzball.ratio,
       limit: 1,
     });
 
     if (matches.length > 0 && matches[0][1] >= CONC_SCORE_THRESHOLD) {
-      var nomeSupaNorm = matches[0][0];
-      var score = matches[0][1];
-      var nomeSupaOriginal = supaNormalized[nomeSupaNorm];
-      var pacSupa = supaByOriginal[nomeSupaOriginal];
+      let nomeSupaNorm = matches[0][0];
+      let score = matches[0][1];
+      let nomeSupaOriginal = supaNormalized[nomeSupaNorm];
+      let pacSupa = supaByOriginal[nomeSupaOriginal];
       matchedSupabase[nomeSupaOriginal] = true;
 
-      var datasEsperadas = concCalcExpectedDates(pacSupa, periodoInicio, periodoFim);
+      let datasEsperadas = concCalcExpectedDates(pacSupa, periodoInicio, periodoFim);
 
       // Set difference: esperadas - pagas
-      var datasNaoPagas = concSortDates(
+      let datasNaoPagas = concSortDates(
         new Set([...datasEsperadas].filter(function(d) { return !datasPagas.has(d); }))
       );
       // Set difference: pagas - esperadas
-      var datasExtras = concSortDates(
+      let datasExtras = concSortDates(
         new Set([...datasPagas].filter(function(d) { return !datasEsperadas.has(d); }))
       );
 
-      var status = concClassify(datasNaoPagas, datasExtras);
+      let status = concClassify(datasNaoPagas, datasExtras);
 
       results.push({
         nome_pdf: nomePdf,
@@ -306,7 +306,7 @@ function concReconcile(dadosPdf, dadosSupabase) {
   // Reverse path: Supabase patients without PDF match
   dadosSupabase.forEach(function(pacSupa) {
     if (!matchedSupabase[pacSupa.nome]) {
-      var datasEsperadas = concCalcExpectedDates(pacSupa, periodoInicio, periodoFim);
+      let datasEsperadas = concCalcExpectedDates(pacSupa, periodoInicio, periodoFim);
       results.push({
         nome_pdf: null,
         nome_supabase: pacSupa.nome,
@@ -328,7 +328,7 @@ function concReconcile(dadosPdf, dadosSupabase) {
 function concShowState(stateId) {
   ['conciliacao-upload', 'conciliacao-loading', 'conciliacao-results', 'conciliacao-error']
     .forEach(function(id) {
-      var el = document.getElementById(id);
+      let el = document.getElementById(id);
       if (el) el.style.display = (id === stateId) ? '' : 'none';
     });
 }
@@ -344,21 +344,21 @@ function concShowError(message) {
 }
 
 function concRenderSummary(resultados) {
-  var statuses = resultados.map(function(r) { return r.status; });
-  var totalGlosaDias = resultados.reduce(function(sum, r) { return sum + r.datas_nao_pagas.length; }, 0);
-  var glosaCount = statuses.filter(function(s) {
+  let statuses = resultados.map(function(r) { return r.status; });
+  let totalGlosaDias = resultados.reduce(function(sum, r) { return sum + r.datas_nao_pagas.length; }, 0);
+  let glosaCount = statuses.filter(function(s) {
     return s === 'Glosa' || s === 'Glosa + Pagamento a Maior';
   }).length;
 
-  var cards = [
-    { label: 'Pacientes PDF', value: resultados.filter(function(r) { return r.nome_pdf; }).length, color: 'var(--color-primary)' },
+  let cards = [
+    { label: 'Pacientes PDF', value: resultados.filter(function(r) { return r.nome_pdf; }).length, color: 'let(--color-primary)' },
     { label: 'Match Perfeito', value: statuses.filter(function(s) { return s === 'Match Perfeito'; }).length, color: '#27ae60' },
     { label: 'Glosas', value: glosaCount + ' (' + totalGlosaDias + ' dias)', color: '#c0392b' },
     { label: 'Nao Faturados', value: statuses.filter(function(s) { return s === 'Nao Faturado'; }).length, color: '#c0392b' },
     { label: 'Nao Encontrados', value: statuses.filter(function(s) { return s === 'Nao Encontrado'; }).length, color: '#e67e22' },
   ];
 
-  var html = '';
+  let html = '';
   cards.forEach(function(c) {
     html += '<div class="conciliacao-summary-card">' +
       '<span class="summary-value" style="color:' + c.color + '">' + c.value + '</span>' +
@@ -369,11 +369,11 @@ function concRenderSummary(resultados) {
 }
 
 function concRenderTable(resultados) {
-  var tbody = document.getElementById('conciliacao-table-body');
-  var html = '';
+  let tbody = document.getElementById('conciliacao-table-body');
+  let html = '';
 
   resultados.forEach(function(r) {
-    var cssClass = CONC_STATUS_COLORS[r.status] || '';
+    let cssClass = CONC_STATUS_COLORS[r.status] || '';
     html += '<tr class="' + cssClass + '">' +
       '<td>' + esc(r.nome_pdf || '') + '</td>' +
       '<td>' + esc(r.nome_supabase || '') + '</td>' +
@@ -398,7 +398,7 @@ function concRenderResults(resultados, dadosPdf) {
 // === EXCEL EXPORT ===
 
 function concExportToExcel(resultados, periodoInicio) {
-  var rows = resultados.map(function(r) {
+  let rows = resultados.map(function(r) {
     return {
       'Nome Faturamento': r.nome_pdf || '',
       'Nome Supabase': r.nome_supabase || '',
@@ -412,11 +412,11 @@ function concExportToExcel(resultados, periodoInicio) {
   });
 
   // Summary rows
-  var statuses = resultados.map(function(r) { return r.status; });
-  var totalGlosaDias = resultados.reduce(function(sum, r) { return sum + r.datas_nao_pagas.length; }, 0);
-  var glosaCount = statuses.filter(function(s) { return s === 'Glosa' || s === 'Glosa + Pagamento a Maior'; }).length;
+  let statuses = resultados.map(function(r) { return r.status; });
+  let totalGlosaDias = resultados.reduce(function(sum, r) { return sum + r.datas_nao_pagas.length; }, 0);
+  let glosaCount = statuses.filter(function(s) { return s === 'Glosa' || s === 'Glosa + Pagamento a Maior'; }).length;
 
-  var summaryRows = [
+  let summaryRows = [
     {},
     { 'Nome Faturamento': 'Total pacientes PDF:', 'Nome Supabase': String(resultados.filter(function(r) { return r.nome_pdf; }).length) },
     { 'Nome Faturamento': 'Total pacientes Supabase:', 'Nome Supabase': String(resultados.filter(function(r) { return r.nome_supabase; }).length) },
@@ -426,19 +426,19 @@ function concExportToExcel(resultados, periodoInicio) {
     { 'Nome Faturamento': 'Nao Encontrados:', 'Nome Supabase': String(statuses.filter(function(s) { return s === 'Nao Encontrado'; }).length) },
   ];
 
-  var allRows = rows.concat(summaryRows);
+  let allRows = rows.concat(summaryRows);
 
-  var ws = XLSX.utils.json_to_sheet(allRows);
-  var wb = XLSX.utils.book_new();
+  let ws = XLSX.utils.json_to_sheet(allRows);
+  let wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Conciliacao');
 
   // Auto-adjust column widths
-  var colWidths = Object.keys(allRows[0] || {}).map(function(key) {
-    var maxLen = key.length;
+  let colWidths = Object.keys(allRows[0] || {}).map(function(key) {
+    let maxLen = key.length;
     allRows.forEach(function(row) {
-      var val = row[key];
+      let val = row[key];
       if (val != null) {
-        var len = String(val).length;
+        let len = String(val).length;
         if (len > maxLen) maxLen = len;
       }
     });
@@ -447,8 +447,8 @@ function concExportToExcel(resultados, periodoInicio) {
   ws['!cols'] = colWidths;
 
   // Generate filename from period
-  var dateParts = periodoInicio.split('/');
-  var filename = 'conciliacao_' + dateParts[2] + '-' + dateParts[1] + '.xlsx';
+  let dateParts = periodoInicio.split('/');
+  let filename = 'conciliacao_' + dateParts[2] + '-' + dateParts[1] + '.xlsx';
 
   XLSX.writeFile(wb, filename);
 }
@@ -456,9 +456,9 @@ function concExportToExcel(resultados, periodoInicio) {
 // === ORCHESTRATOR ===
 
 async function concProcessar() {
-  var fileInput = document.getElementById('conciliacao-pdf-input');
-  var file = fileInput.files[0];
-  var apiKey = document.getElementById('conciliacao-gemini-key').value.trim();
+  let fileInput = document.getElementById('conciliacao-pdf-input');
+  let file = fileInput.files[0];
+  let apiKey = document.getElementById('conciliacao-gemini-key').value.trim();
 
   if (!file) return;
   if (!apiKey) {
@@ -476,7 +476,7 @@ async function concProcessar() {
 
     // 2. Query Supabase
     concSetLoading('Consultando pacientes no Supabase...');
-    var dadosSupabase = await concFetchPatients(
+    let dadosSupabase = await concFetchPatients(
       conciliacaoDadosPdf.periodo_inicio,
       conciliacaoDadosPdf.periodo_fim
     );
@@ -498,16 +498,16 @@ async function concProcessar() {
 
 function initConciliacao() {
   // Restore saved API key from session instead of local storage
-  var savedKey = sessionStorage.getItem('geminiApiKey');
-  var keyInput = document.getElementById('conciliacao-gemini-key');
+  let savedKey = sessionStorage.getItem('geminiApiKey');
+  let keyInput = document.getElementById('conciliacao-gemini-key');
   if (savedKey && keyInput) {
     keyInput.value = savedKey;
   }
 
   // File input change — show file name + enable button
-  var fileInput = document.getElementById('conciliacao-pdf-input');
-  var processarBtn = document.getElementById('conciliacao-processar-btn');
-  var fileNameSpan = document.getElementById('conciliacao-file-name');
+  let fileInput = document.getElementById('conciliacao-pdf-input');
+  let processarBtn = document.getElementById('conciliacao-processar-btn');
+  let fileNameSpan = document.getElementById('conciliacao-file-name');
 
   if (fileInput) {
     fileInput.addEventListener('change', function() {
@@ -522,7 +522,7 @@ function initConciliacao() {
   }
 
   // Make upload area clickable
-  var uploadArea = document.querySelector('.conciliacao-upload-area');
+  let uploadArea = document.querySelector('.conciliacao-upload-area');
   if (uploadArea) {
     uploadArea.addEventListener('click', function(e) {
       if (e.target.tagName !== 'BUTTON') {
@@ -537,7 +537,7 @@ function initConciliacao() {
   }
 
   // Export Excel button
-  var exportBtn = document.getElementById('conciliacao-export-btn');
+  let exportBtn = document.getElementById('conciliacao-export-btn');
   if (exportBtn) {
     exportBtn.addEventListener('click', function() {
       if (conciliacaoResultados && conciliacaoDadosPdf) {
@@ -547,12 +547,12 @@ function initConciliacao() {
   }
 
   // Nova conciliacao button
-  var novaBtn = document.getElementById('conciliacao-nova-btn');
+  let novaBtn = document.getElementById('conciliacao-nova-btn');
   if (novaBtn) {
     novaBtn.addEventListener('click', function() {
       conciliacaoResultados = null;
       conciliacaoDadosPdf = null;
-      var fi = document.getElementById('conciliacao-pdf-input');
+      let fi = document.getElementById('conciliacao-pdf-input');
       fi.value = '';
       document.getElementById('conciliacao-file-name').textContent = '';
       document.getElementById('conciliacao-processar-btn').disabled = true;
@@ -561,7 +561,7 @@ function initConciliacao() {
   }
 
   // Retry button
-  var retryBtn = document.getElementById('conciliacao-retry-btn');
+  let retryBtn = document.getElementById('conciliacao-retry-btn');
   if (retryBtn) {
     retryBtn.addEventListener('click', function() {
       concShowState('conciliacao-upload');

@@ -45,7 +45,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // --- DOMAIN CONSTANTS ---
+  // ─────────────────────────────────────────
+  // SEÇÃO: CONFIGURAÇÕES E CONSTANTES
+  // ─────────────────────────────────────────
   const DOCTORS = ['Beatriz', 'Eduardo', 'Felipe Reinaldo', 'Igor', 'Tamires'];
   window.DOCTORS = DOCTORS;
   const HOSPITALS = ['HVNS', 'HSL', 'H9J', 'Outro'];
@@ -53,13 +55,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   const STATUS = { INTERNADO: 'Internado', ALTA: 'Alta' };
   const DAYS_ACTIVE_THRESHOLD = 5;
 
-  // STATE
+  // ─────────────────────────────────────────
+  // SEÇÃO: ESTADO GLOBAL
+  // ─────────────────────────────────────────
   let patients = [];
   let relatoriosSet = new Set(); // patient_ids com relatório salvo
   let currentSort = { column: 'dataUltimaVisita', dir: 'desc' };
   let isProcessing = false;
 
-  // DOM Elements - Navigation
+  // ─────────────────────────────────────────
+  // SEÇÃO: ELEMENTOS DA INTERFACE (DOM)
+  // ─────────────────────────────────────────
   const navBtns = document.querySelectorAll('.nav-btn:not(#btn-logout)');
   const screens = document.querySelectorAll('.screen');
 
@@ -150,7 +156,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (filterCalStartDate) filterCalStartDate.value = firstDayOfMonth;
   if (filterCalEndDate) filterCalEndDate.value = today;
 
-  // --- CORE UTILS ---
+  // ─────────────────────────────────────────
+  // SEÇÃO: FUNÇÕES UTILITÁRIAS
+  // ─────────────────────────────────────────
 
   function esc(str) {
     if (!str) return '';
@@ -400,7 +408,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderCalendar();
   }
 
-  // PERMISSIONS CONTROL
+  // ─────────────────────────────────────────
+  // SEÇÃO: FUNÇÕES DE INTERFACE (PERMISSÕES E NAVEGAÇÃO)
+  // ─────────────────────────────────────────
   function hideNavTab(screenId) {
     const btn = document.querySelector(`.nav-btn[data-target="${screenId}"]`);
     if (btn) {
@@ -455,7 +465,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // SCREEN 1: REGISTRO DIÁRIO
+  // ─────────────────────────────────────────
+  // SEÇÃO: FUNÇÕES DE DADOS (REGISTRO E VISITAS)
+  // ─────────────────────────────────────────
   async function createPatientWithVisit({ nome, hospital, internacao, ehAlta, dataVisita, numeroVisitas, medico }) {
     const { data: newPat, error } = await supabaseClient.from('patients').insert({
       pacientenome: nome,
@@ -742,7 +754,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // SCREEN 2: FICHA DE PACIENTES
+  // ─────────────────────────────────────────
+  // SEÇÃO: FUNÇÕES DE INTERFACE (FICHA)
+  // ─────────────────────────────────────────
   function setupFichaFilters() {
     filterSearch.addEventListener('input', renderPatientsTable);
     if (filterInternacao) filterInternacao.addEventListener('change', renderPatientsTable);

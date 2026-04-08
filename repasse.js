@@ -662,13 +662,80 @@ function renderRepasseEntrada() {
 }
 
 // === T15 — RENDER PÁG. 1 (FATURA DETALHADA) ===
-function renderPag1(dados, pacientesIncluidos, ambResumo) {
-  const { mes, ano } = getSelectedMesAno();
-  const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
-    'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-  const periodo = `${meses[mes - 1]} / ${ano}`;
-  const emissao = new Date().toLocaleDateString('pt-BR');
 
+/**
+ * Renderiza o cartão de resumo do faturamento (total, impostos, divisão)
+ */
+function renderCartaoResumoFaturamento(dados) {
+  return `
+    <div class="repasse-calc-card">
+      <div class="calc-line"><span>Valor Total Recebido</span><span>${formatBRL(dados.total)}</span></div>
+      <div class="calc-line"><span>(-) Impostos (${repasseConfig.pct_impostos}%)</span><span>${formatBRL(dados.impostos)}</span></div>
+      <div class="calc-line"><span>(-) Administração (${repasseConfig.pct_adm}%)</span><span>${formatBRL(dados.adm)}</span></div>
+      <div class="calc-line"><span>= Restante</span><span>${formatBRL(dados.restante)}</span></div>
+      <div class="calc-line"><span>(-) Dra. Samira (${repasseConfig.pct_samira}%)</span><span>${formatBRL(dados.samira)}</span></div>
+      <div class="calc-line"><span>= Divisão da Equipe</span><span>${formatBRL(dados.divisaoEquipe)}</span></div>
+      <div class="calc-line"><span>Total de Visitas (Equipe)</span><span>${dados.totalVisitasEquipe}</span></div>
+      <div class="calc-line"><span>Valor por Visita</span><span>${formatBRL(dados.valorPorVisita)}</span></div>
+    </div>
+  `;
+}
+
+/**
+ * Renderiza a seção de ambulatorio detalhada se houver
+ */
+function renderSecaoAmbulatorio(ambResumo) {
+  if (!ambResumo) return '';
+  return `
+    <h4 style="margin-top:2rem; margin-bottom:0.75rem; font-family:var(--font-title); color:var(--color-primary); font-size:1.05rem;">
+      Ambulatório
+    </h4>
+    <div class="repasse-calc-card">
+      <div class="calc-line"><span>Total de Consultas</span><span>${ambResumo.totalConsultas}</span></div>
+      <div class="calc-line"><span>Valor Total Bruto</span><span>${formatBRL(ambResumo.totalBruto)}</span></div>
+      <div class="calc-line"><span>Total Líquido Médicos</span><span>${formatBRL(ambResumo.totalLiqMedicos)}</span></div>
+      <div class="calc-line"><span>Total Líquido Dra. Samira</span><span>${formatBRL(ambResumo.totalLiqSamira)}</span></div>
+    </div>
+    <table style="width:100%; border-collapse:collapse; margin-top:1rem;">
+      <thead>
+        <tr>
+          <th style="text-align:left;">Paciente</th>
+          <th style="text-align:left;">Data</th>
+          <th style="text-align:left;">Tipo</th>
+          <th style="text-align:left;">Médico</th>
+          <th style="text-align:right;">Líq. Médico</th>
+          <th style="text-align:right;">Líq. Samira</th>
+          <th style="text-align:left;">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${ambResumo.rows.map(c => `
+        <tr>
+          <td>${esc(c.paciente_nome)}</td>
+          <td>${new Date(c.data_consulta + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+          <td>${c.consulta_conjunta ? 'Conjunta' : 'Exclusiva'}</td>
+          <td>${esc(c.medico || '—')}</td>
+          <td style="text-align:right;">${formatBRL(c.valor_liquido_medico)}</td>
+          <td style="text-align:right;">${formatBRL(c.valor_liquido_samira)}</td>
+          <td>${esc(c.status_pagamento)}</td>
+        </tr>`).join('')}
+      </tbody>
+      <tfoot>
+        <tr style="font-weight:700; border-top:2px solid var(--color-primary);">
+          <td colspan="4">Total</td>
+          <td style="text-align:right;">${formatBRL(ambResumo.totalLiqMedicos)}</td>
+          <td style="text-align:right;">${formatBRL(ambResumo.totalLiqSamira)}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  `;
+}
+
+/**
+ * Renderiza a tabela principal de pacientes faturados
+ */
+function renderTabelaPacientesFaturados(pacientesIncluidos, totalValor) {
   const linhasPacientes = pacientesIncluidos.map(pac => {
     const nome = getNomeDisplay(pac);
     const inicio = pac.periodo_inicio ? new Date(pac.periodo_inicio + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
@@ -685,89 +752,49 @@ function renderPag1(dados, pacientesIncluidos, ambResumo) {
   }).join('');
 
   return `
+    <table style="width:100%; border-collapse:collapse; margin-top:1.5rem;">
+      <thead>
+        <tr>
+          <th style="text-align:left;">Paciente</th>
+          <th style="text-align:left;">Período</th>
+          <th style="text-align:left;">Pagou?</th>
+          <th style="text-align:right;">Valor Recebido</th>
+          <th style="text-align:left;">Unidade</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${linhasPacientes}
+      </tbody>
+      <tfoot>
+        <tr style="font-weight:700; border-top:2px solid var(--color-primary);">
+          <td colspan="3">Total</td>
+          <td style="text-align:right;">${formatBRL(totalValor)}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  `;
+}
+
+/**
+ * Função agregadora para montar a Página 1 do Relatório de Repasse
+ */
+function renderPag1(dados, pacientesIncluidos, ambResumo) {
+  const { mes, ano } = getSelectedMesAno();
+  const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const periodo = `${meses[mes - 1]} / ${ano}`;
+  const emissao = new Date().toLocaleDateString('pt-BR');
+
+  return `
     <div class="repasse-pag1">
       <h3>Demonstrativo de Repasse — ${periodo}</h3>
       <p style="text-align:center; color:var(--color-text-secondary); margin-bottom:1.5rem; font-family:var(--font-body);">
         Emissão: ${emissao}
       </p>
 
-      <div class="repasse-calc-card">
-        <div class="calc-line"><span>Valor Total Recebido</span><span>${formatBRL(dados.total)}</span></div>
-        <div class="calc-line"><span>(-) Impostos (${repasseConfig.pct_impostos}%)</span><span>${formatBRL(dados.impostos)}</span></div>
-        <div class="calc-line"><span>(-) Administração (${repasseConfig.pct_adm}%)</span><span>${formatBRL(dados.adm)}</span></div>
-        <div class="calc-line"><span>= Restante</span><span>${formatBRL(dados.restante)}</span></div>
-        <div class="calc-line"><span>(-) Dra. Samira (${repasseConfig.pct_samira}%)</span><span>${formatBRL(dados.samira)}</span></div>
-        <div class="calc-line"><span>= Divisão da Equipe</span><span>${formatBRL(dados.divisaoEquipe)}</span></div>
-        <div class="calc-line"><span>Total de Visitas (Equipe)</span><span>${dados.totalVisitasEquipe}</span></div>
-        <div class="calc-line"><span>Valor por Visita</span><span>${formatBRL(dados.valorPorVisita)}</span></div>
-      </div>
-
-      ${ambResumo ? `
-      <h4 style="margin-top:2rem; margin-bottom:0.75rem; font-family:var(--font-title); color:var(--color-primary); font-size:1.05rem;">
-        Ambulatório
-      </h4>
-      <div class="repasse-calc-card">
-        <div class="calc-line"><span>Total de Consultas</span><span>${ambResumo.totalConsultas}</span></div>
-        <div class="calc-line"><span>Valor Total Bruto</span><span>${formatBRL(ambResumo.totalBruto)}</span></div>
-        <div class="calc-line"><span>Total Líquido Médicos</span><span>${formatBRL(ambResumo.totalLiqMedicos)}</span></div>
-        <div class="calc-line"><span>Total Líquido Dra. Samira</span><span>${formatBRL(ambResumo.totalLiqSamira)}</span></div>
-      </div>
-      <table style="width:100%; border-collapse:collapse; margin-top:1rem;">
-        <thead>
-          <tr>
-            <th style="text-align:left;">Paciente</th>
-            <th style="text-align:left;">Data</th>
-            <th style="text-align:left;">Tipo</th>
-            <th style="text-align:left;">Médico</th>
-            <th style="text-align:right;">Líq. Médico</th>
-            <th style="text-align:right;">Líq. Samira</th>
-            <th style="text-align:left;">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${ambResumo.rows.map(c => `
-          <tr>
-            <td>${esc(c.paciente_nome)}</td>
-            <td>${new Date(c.data_consulta + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
-            <td>${c.consulta_conjunta ? 'Conjunta' : 'Exclusiva'}</td>
-            <td>${esc(c.medico || '—')}</td>
-            <td style="text-align:right;">${formatBRL(c.valor_liquido_medico)}</td>
-            <td style="text-align:right;">${formatBRL(c.valor_liquido_samira)}</td>
-            <td>${esc(c.status_pagamento)}</td>
-          </tr>`).join('')}
-        </tbody>
-        <tfoot>
-          <tr style="font-weight:700; border-top:2px solid var(--color-primary);">
-            <td colspan="4">Total</td>
-            <td style="text-align:right;">${formatBRL(ambResumo.totalLiqMedicos)}</td>
-            <td style="text-align:right;">${formatBRL(ambResumo.totalLiqSamira)}</td>
-            <td></td>
-          </tr>
-        </tfoot>
-      </table>
-      ` : ''}
-
-      <table style="width:100%; border-collapse:collapse; margin-top:1.5rem;">
-        <thead>
-          <tr>
-            <th style="text-align:left;">Paciente</th>
-            <th style="text-align:left;">Período</th>
-            <th style="text-align:left;">Pagou?</th>
-            <th style="text-align:right;">Valor Recebido</th>
-            <th style="text-align:left;">Unidade</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${linhasPacientes}
-        </tbody>
-        <tfoot>
-          <tr style="font-weight:700; border-top:2px solid var(--color-primary);">
-            <td colspan="3">Total</td>
-            <td style="text-align:right;">${formatBRL(dados.total)}</td>
-            <td></td>
-          </tr>
-        </tfoot>
-      </table>
+      ${renderCartaoResumoFaturamento(dados)}
+      ${renderSecaoAmbulatorio(ambResumo)}
+      ${renderTabelaPacientesFaturados(pacientesIncluidos, dados.total)}
     </div>
   `;
 }

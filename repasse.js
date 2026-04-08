@@ -9,6 +9,13 @@ let _expandedRows = new Set();
 const AMB_COLS = 'id, paciente_nome, data_consulta, medico, consulta_conjunta, valor_total, valor_medico, valor_samira, imposto_medico, imposto_samira, administracao_medico, valor_liquido_medico, valor_liquido_samira, status_pagamento, valor_recebido';
 
 // === HELPERS ===
+function esc(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
 function getSelectedMesAno() {
   const mes = Number(document.getElementById('repasse-mes')?.value);
   const ano = Number(document.getElementById('repasse-ano')?.value);

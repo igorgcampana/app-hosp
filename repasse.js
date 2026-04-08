@@ -538,10 +538,11 @@ function calcAmbulatorioResumo(consultas) {
   consultas.forEach(c => {
     if (c.consulta_conjunta && c.medico) {
       if (!porMedico[c.medico]) {
-        porMedico[c.medico] = { consultas: 0, valorLiquido: 0 };
+        porMedico[c.medico] = { consultas: 0, valorLiquido: 0, rows: [] };
       }
       porMedico[c.medico].consultas++;
       porMedico[c.medico].valorLiquido += Number(c.valor_liquido_medico) || 0;
+      porMedico[c.medico].rows.push(c);
     }
   });
 
@@ -550,7 +551,8 @@ function calcAmbulatorioResumo(consultas) {
     totalBruto,
     totalLiqMedicos,
     totalLiqSamira,
-    porMedico
+    porMedico,
+    rows: [...consultas].sort((a, b) => a.data_consulta.localeCompare(b.data_consulta))
   };
 }
 
@@ -710,6 +712,39 @@ function renderPag1(dados, pacientesIncluidos, ambResumo) {
         <div class="calc-line"><span>Total Líquido Médicos</span><span>${formatBRL(ambResumo.totalLiqMedicos)}</span></div>
         <div class="calc-line"><span>Total Líquido Dra. Samira</span><span>${formatBRL(ambResumo.totalLiqSamira)}</span></div>
       </div>
+      <table style="width:100%; border-collapse:collapse; margin-top:1rem;">
+        <thead>
+          <tr>
+            <th style="text-align:left;">Paciente</th>
+            <th style="text-align:left;">Data</th>
+            <th style="text-align:left;">Tipo</th>
+            <th style="text-align:left;">Médico</th>
+            <th style="text-align:right;">Líq. Médico</th>
+            <th style="text-align:right;">Líq. Samira</th>
+            <th style="text-align:left;">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${ambResumo.rows.map(c => `
+          <tr>
+            <td>${esc(c.paciente_nome)}</td>
+            <td>${new Date(c.data_consulta + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+            <td>${c.consulta_conjunta ? 'Conjunta' : 'Exclusiva'}</td>
+            <td>${esc(c.medico || '—')}</td>
+            <td style="text-align:right;">${formatBRL(c.valor_liquido_medico)}</td>
+            <td style="text-align:right;">${formatBRL(c.valor_liquido_samira)}</td>
+            <td>${esc(c.status_pagamento)}</td>
+          </tr>`).join('')}
+        </tbody>
+        <tfoot>
+          <tr style="font-weight:700; border-top:2px solid var(--color-primary);">
+            <td colspan="4">Total</td>
+            <td style="text-align:right;">${formatBRL(ambResumo.totalLiqMedicos)}</td>
+            <td style="text-align:right;">${formatBRL(ambResumo.totalLiqSamira)}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
       ` : ''}
 
       <table style="width:100%; border-collapse:collapse; margin-top:1.5rem;">
@@ -821,10 +856,34 @@ function renderPag2(medico, dados, ambResumo) {
       <h4 style="margin-top:2rem; margin-bottom:0.75rem; font-family:var(--font-title); color:var(--color-primary); font-size:1rem;">
         Consultas Ambulatoriais
       </h4>
-      <div class="repasse-calc-card">
-        <div class="calc-line"><span>Consultas Conjuntas</span><span>${ambResumo.porMedico[medico].consultas}</span></div>
-        <div class="calc-line"><span>Valor Líquido Ambulatório</span><span>${formatBRL(ambResumo.porMedico[medico].valorLiquido)}</span></div>
-      </div>
+      <table style="width:100%; border-collapse:collapse; margin-top:0.5rem;">
+        <thead>
+          <tr>
+            <th style="text-align:left;">Paciente</th>
+            <th style="text-align:left;">Data</th>
+            <th style="text-align:right;">Valor Total</th>
+            <th style="text-align:right;">Líq. Médico</th>
+            <th style="text-align:left;">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${ambResumo.porMedico[medico].rows.map(c => `
+          <tr>
+            <td>${esc(c.paciente_nome)}</td>
+            <td>${new Date(c.data_consulta + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+            <td style="text-align:right;">${formatBRL(c.valor_total)}</td>
+            <td style="text-align:right;">${formatBRL(c.valor_liquido_medico)}</td>
+            <td>${esc(c.status_pagamento)}</td>
+          </tr>`).join('')}
+        </tbody>
+        <tfoot>
+          <tr style="font-weight:700; border-top:2px solid var(--color-primary);">
+            <td colspan="3">Total</td>
+            <td style="text-align:right;">${formatBRL(ambResumo.porMedico[medico].valorLiquido)}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
       ` : ''}
 
       <div class="repasse-assinatura">

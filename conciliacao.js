@@ -5,44 +5,6 @@ let conciliacaoDadosPdf = null;
 // === CONSTANTS ===
 const CONC_SCORE_THRESHOLD = 80;
 
-const CONC_GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
-
-const CONC_EXTRACTION_PROMPT = `Analyze this hospital billing PDF ("Analitico de Repasse a Terceiros") and extract structured data.
-
-RULES:
-1. Extract the coverage period from the header ("Periodo: X ate Y").
-2. Iterate ALL execution lines across ALL pages and ALL insurance plan sections.
-3. Group by PATIENT NAME — the same patient may appear under different insurance plans in different sections. Merge them.
-4. ALL procedure types count as a paid visit: Visita hospitalar, Consulta eletiva, Parecer Medico, Em Pronto Socorro.
-5. For each patient, list every individual Dt. Exec. date. Remove duplicates within the same patient.
-6. Return patient names in UPPERCASE exactly as they appear in the PDF.
-7. Date format must be DD/MM/YYYY.
-
-Return ONLY the JSON. No additional text.`;
-
-const CONC_RESPONSE_SCHEMA = {
-  type: 'OBJECT',
-  properties: {
-    periodo_inicio: { type: 'STRING', description: 'Start date DD/MM/YYYY' },
-    periodo_fim: { type: 'STRING', description: 'End date DD/MM/YYYY' },
-    pacientes: {
-      type: 'ARRAY',
-      items: {
-        type: 'OBJECT',
-        properties: {
-          nome: { type: 'STRING', description: 'Patient name in UPPERCASE' },
-          datas: {
-            type: 'ARRAY',
-            items: { type: 'STRING' },
-            description: 'List of Dt. Exec. dates in DD/MM/YYYY format',
-          },
-        },
-        required: ['nome', 'datas'],
-      },
-    },
-  },
-  required: ['periodo_inicio', 'periodo_fim', 'pacientes'],
-};
 
 const CONC_STATUS_COLORS = {
   'Match Perfeito': 'status-match',
@@ -117,42 +79,22 @@ function concReadFileAsBase64(file) {
 
 // === GEMINI EXTRACTION ===
 
-async function concExtractFromPdf(file, apiKey) {
+async function concExtractFromPdf(file) {
   let base64 = await concReadFileAsBase64(file);
-
-  let body = {
-    contents: [{
-      parts: [
-        { inline_data: { mime_type: 'application/pdf', data: base64 } },
-        { text: CONC_EXTRACTION_PROMPT },
-      ],
-    }],
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: CONC_RESPONSE_SCHEMA,
-    },
-  };
 
   let maxRetries = 3;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      let response = await fetch(CONC_GEMINI_URL + '?key=' + apiKey, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+      const { data, error } = await supabaseClient.functions.invoke('processa-conciliacao', {
+        body: { base64Pdf: base64 }
       });
 
-      if (!response.ok) {
-        let errText = await response.text();
-        throw new Error('HTTP ' + response.status + ': ' + errText);
+      if (error) {
+        throw new Error('Supabase Edge Function: ' + error.message);
       }
 
-      let result = await response.json();
-      let text = result.candidates[0].content.parts[0].text;
-      let data = JSON.parse(text);
-
-      if (!data.pacientes || data.pacientes.length === 0) {
-        throw new Error('Gemini retornou lista de pacientes vazia.');
+      if (data && data.error) {
+          throw new Error('Retorno do Servidor: ' + data.error);
       }
 
       return data;
@@ -458,21 +400,12 @@ function concExportToExcel(resultados, periodoInicio) {
 async function concProcessar() {
   let fileInput = document.getElementById('conciliacao-pdf-input');
   let file = fileInput.files[0];
-  let apiKey = document.getElementById('conciliacao-gemini-key').value.trim();
-
   if (!file) return;
-  if (!apiKey) {
-    alert('Insira sua chave Gemini API.');
-    return;
-  }
-
-  // Save API key for the current session only
-  sessionStorage.setItem('geminiApiKey', apiKey);
 
   try {
     // 1. Extract from PDF
     concSetLoading('Extraindo dados do PDF via Gemini...');
-    conciliacaoDadosPdf = await concExtractFromPdf(file, apiKey);
+    conciliacaoDadosPdf = await concExtractFromPdf(file);
 
     // 2. Query Supabase
     concSetLoading('Consultando pacientes no Supabase...');
@@ -497,13 +430,6 @@ async function concProcessar() {
 // === INIT ===
 
 function initConciliacao() {
-  // Restore saved API key from session instead of local storage
-  let savedKey = sessionStorage.getItem('geminiApiKey');
-  let keyInput = document.getElementById('conciliacao-gemini-key');
-  if (savedKey && keyInput) {
-    keyInput.value = savedKey;
-  }
-
   // File input change — show file name + enable button
   let fileInput = document.getElementById('conciliacao-pdf-input');
   let processarBtn = document.getElementById('conciliacao-processar-btn');

@@ -10,10 +10,16 @@
 │  ┌───────────┐  ┌──────────────────┐   │
 │  │ login.html│  │ index.html (SPA) │   │
 │  │ login.js  │  │ script.js        │   │
-│  └─────┬─────┘  └────────┬─────────┘   │
+│  └─────┬─────┘  │ repasse.js       │   │
+│        │        │ conciliacao.js   │   │
+│        │        └────────┬─────────┘   │
 │        │                 │              │
-│        └────────┬────────┘              │
-│                 │ Supabase Client SDK   │
+│        │        ┌──────────────────┐   │
+│        └────────│ ambulatorio.html │   │
+│                 │ ambulatorio.js   │   │
+│                 └────────┬─────────┘   │
+│                          │ Supabase    │
+│                          │ Client SDK  │
 └─────────────────┼───────────────────────┘
                   │ HTTPS
 ┌─────────────────┼───────────────────────┐
@@ -21,7 +27,7 @@
 │  ┌──────────────┴────────────────────┐  │
 │  │ Auth (JWT)                        │  │
 │  │ PostgreSQL (patients, historico,  │  │
-│  │              profiles)            │  │
+│  │ profiles, relatorios, repasse_*)  │  │
 │  │ RLS Policies (RBAC enforcement)   │  │
 │  └───────────────────────────────────┘  │
 └─────────────────────────────────────────┘
@@ -39,16 +45,16 @@
 ### Screen-Based SPA Navigation
 
 **Location:** `index.html` (nav buttons) + `script.js` (toggle)
-**Purpose:** Alternar entre 3 telas sem recarregar a página
+**Purpose:** Alternar entre as telas do núcleo sem recarregar a página
 **Implementation:** Botões com `data-target="screen-*"` controlam visibilidade via classe `.active`. Apenas uma screen visível por vez.
 **Example:** `data-target="screen-registro"` → mostra seção de registro diário
 
 ### Dual-Layer RBAC
 
 **Location:** `styles.css` (CSS hiding) + Supabase RLS policies
-**Purpose:** Controle de acesso doctor vs manager
+**Purpose:** Controle de acesso por role no núcleo atual
 **Implementation:**
-  - **Frontend (UX):** Classe `role-manager` no `<body>` esconde botões de edição via CSS `display: none !important`
+  - **Frontend (UX):** Classes de role no `<body>` escondem ou removem áreas conforme `admin`, `doctor` e `manager`
   - **Backend (segurança):** Policies RLS bloqueiam INSERT/UPDATE/DELETE para role `manager`
 **Example:** `body.role-manager [data-action="edit-patient"] { display: none !important; }`
 
@@ -66,7 +72,7 @@
 ```
 login.html → signInWithPassword() → JWT → redirect index.html
   → getSession() → profiles.select(role) → applyRolePermissions()
-  → body.classList.add('role-doctor' | 'role-manager')
+  → body.classList.add('role-admin' | 'role-doctor' | 'role-manager')
   → document.body.style.visibility = 'visible'
 ```
 
@@ -94,15 +100,18 @@ Seleção de período → renderCalendar()
 
 ## Code Organization
 
-**Approach:** Monolito single-file (não modular)
+**Approach:** Núcleo ainda centralizado em `script.js`, com extração parcial para módulos dedicados
 
 **Structure:**
 - `login.html` + `login.js` — autenticação isolada
-- `index.html` — toda a estrutura DOM (3 screens + 4 modals)
-- `script.js` — toda a lógica da aplicação (1520 linhas)
+- `index.html` — estrutura DOM do núcleo
+- `script.js` — lógica principal do censo
+- `repasse.js` — cálculo financeiro e geração de PDFs
+- `conciliacao.js` — reconciliação de faturamento
+- `ambulatorio.html` + `ambulatorio.js` — módulo standalone completo (655 + 608 linhas)
 - `styles.css` — design system + responsivo (902 linhas)
 
-**Module boundaries:** Não há módulos formais. O `script.js` é organizado por seções:
+**Module boundaries:** O projeto está em transição de um monolito para um núcleo com módulos por domínio:
 1. Inicialização (auth, DOM caching, state)
 2. Utilidades (escape, toast, dates)
 3. Data fetching
@@ -110,3 +119,6 @@ Seleção de período → renderCalendar()
 5. UI rendering (tabelas, calendário, modais)
 6. Event delegation (router central de ações)
 7. Exportação CSV
+8. Repasse (`repasse.js`)
+9. Conciliação (`conciliacao.js`)
+10. Ambulatório (`ambulatorio.js` — módulo standalone completo com CRUD, configuração financeira, filtros e resumo mensal)

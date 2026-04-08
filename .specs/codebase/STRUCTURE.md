@@ -11,15 +11,23 @@ AppHosp/
 ├── .gitignore            # Ignora .DS_Store
 ├── .worktrees/           # Git worktrees auxiliares
 ├── .specs/               # Documentação brownfield fatiada por tema
-│   └── codebase/
+│   ├── codebase/
+│   ├── features/
+│   └── project/
 ├── CLAUDE.md             # Instruções para Claude Code
 ├── BROWNFIELD_MAPPING.md # Mapeamento amplo do sistema
 ├── README.md             # Documentação do projeto
-├── index.html            # SPA principal (3 telas + 4 modais)
+├── index.html            # SPA principal do núcleo operacional
 ├── login.html            # Página de login isolada
-├── script.js             # Lógica completa da aplicação (1520 linhas)
+├── script.js             # Núcleo do censo hospitalar
+├── repasse.js            # Módulo de repasse mensal
+├── conciliacao.js        # Módulo de conciliação de faturamento
+├── ambulatorio.html      # Entrada standalone do ambulatório
+├── ambulatorio.js        # Bootstrap atual do ambulatório
 ├── login.js              # Lógica de autenticação (65 linhas)
 ├── styles.css            # Design system + responsivo (902 linhas)
+├── docs/                 # Planos operacionais e fluxogramas
+├── scripts/              # SQL e scripts auxiliares
 ├── manifest.json         # PWA metadata
 ├── robots.txt            # SEO (noindex login)
 └── vercel.json           # Config deploy (redirect root → login)
@@ -38,11 +46,21 @@ AppHosp/
 
 ### Aplicação Principal (SPA)
 
-**Purpose:** Censo hospitalar — registro, fichas, calendário, relatórios
-**Location:** `index.html` + `script.js`
+**Purpose:** Núcleo operacional do produto
+**Location:** `index.html` + `script.js` + módulos acoplados
 **Key files:**
-- `index.html` — toda a estrutura DOM (367 linhas)
-- `script.js` — toda a lógica (1520 linhas)
+- `index.html` — estrutura DOM do núcleo
+- `script.js` — autenticação em runtime, registro, fichas, calendário, relatórios
+- `repasse.js` — fechamento mensal e PDFs
+- `conciliacao.js` — conciliação com PDF + Gemini + Excel
+
+### Ambulatório
+
+**Purpose:** Módulo standalone completo para registro e gestão financeira de consultas ambulatoriais
+**Location:** `ambulatorio.html` + `ambulatorio.js`
+**Key files:**
+- `ambulatorio.html` — UI completa: formulário, painel de configuração financeira, histórico com filtros, resumo mensal, modal de exclusão (655 linhas)
+- `ambulatorio.js` — auth guard, RBAC (admin/manager/doctor), CRUD em `consultas_ambulatoriais`, `calcConsulta()` helper financeiro, `loadConsultas()`, `renderHistorico()`, filtros, persistência de config (608 linhas)
 
 ### Design System
 
@@ -54,11 +72,14 @@ AppHosp/
 ### Brownfield Docs
 
 **Purpose:** Acelerar onboarding, manutenção e análise de risco
-**Location:** `BROWNFIELD_MAPPING.md` + `.specs/codebase/`
+**Location:** `BROWNFIELD_MAPPING.md` + `.specs/codebase/` + `.specs/project/` + `docs/`
 **Key files:**
 - `BROWNFIELD_MAPPING.md` — visão ampla do sistema
 - `.specs/codebase/README.md` — índice dos documentos
 - `.specs/codebase/CONCERNS.md` — dívidas, riscos e fragilidades
+- `.specs/project/PROJECT.md` — visão executiva de produto e roadmap
+- `.specs/project/STATE.md` — estado corrente e próxima ação
+- `docs/fluxograma-funcionamento-apphosp.md` — mapa atual/parcial/planejado
 
 ### Deploy & Config
 
@@ -91,6 +112,18 @@ AppHosp/
 **Calendário:**
 - UI: `index.html` → `#screen-calendario`
 - Lógica: `script.js` → `renderCalendar()`, `exportCalendarCSV()`
+
+**Repasse:**
+- UI: `index.html` → `#screen-repasse`
+- Lógica: `repasse.js`
+
+**Conciliação:**
+- UI: `index.html` → `#screen-conciliacao`
+- Lógica: `conciliacao.js`
+
+**Ambulatório:**
+- UI: `ambulatorio.html` (acessado via link no header do censo, visível para admin)
+- Lógica: `ambulatorio.js` (CRUD, cálculo financeiro, filtros, resumo)
 
 **Relatórios:**
 - UI: `index.html` → `#relatorio-modal`

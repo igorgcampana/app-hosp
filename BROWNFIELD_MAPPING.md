@@ -2,7 +2,7 @@
 
 **Project**: Censo Hospitalar (Hospital Census Management System)  
 **Stack**: Vanilla HTML5 + CSS3 + ES6+ JavaScript + Supabase + Vercel  
-**Date**: 2026-03-29  
+**Date**: 2026-04-08  
 **Status**: Production (Critical Financial System)
 
 ---
@@ -10,24 +10,35 @@
 ## 1. PROJECT OVERVIEW
 
 ### Purpose
-Hospital census management application for Dr. Igor Campana. Replaces manual spreadsheets with a secure relational database for:
+Hospital management application for Dr. Igor Campana. The current production core replaces manual spreadsheets with a secure relational database for:
 - Daily visit registration
 - Patient record management across multiple hospitals
 - Historical visit tracking
-- Monthly billing export
+- Monthly repasse calculation
+- Billing reconciliation
 - Real-time active patient monitoring
 
+The repository also contains:
+- a partial standalone module for ambulatory consultations
+- active planning for private billing, WhatsApp and automations
+
 ### Users & Access Roles
+0. **admin**
+   - Full access to the current operational core
+   - Access to Repasse and Conciliação
+   - Full access to Ambulatorio module (link visible in census header)
+
 1. **doctor** (Medical Staff)
-   - Full CRUD on patient records and visits
+   - Operational access to the census flow
+   - CRUD on patient records and visits
    - Daily registration shortcuts
    - Autocomplete patient suggestions
    - Report generation (CID-10)
-   - CSV export capabilities
+   - Calendar usage and operational edits
 
-2. **manager** (Admin/Secretary)
-   - Read-only access to all data
-   - View patient records, calendar, exports
+2. **manager** (Manager/Secretary)
+   - Read-only access to the census core
+   - View patient records and calendar
    - No UI write buttons (CSS hidden + RLS backend)
    - Cannot modify data at database level
 
@@ -41,6 +52,10 @@ AppHosp/
 ├── index.html          # Main SPA (all modals, screens, DOM structure)
 ├── login.html          # Authentication page (isolated)
 ├── script.js           # Core logic (1520 lines, ~57KB)
+├── repasse.js          # Monthly repasse module
+├── conciliacao.js      # Billing reconciliation module
+├── ambulatorio.html    # Standalone ambulatory module (655 lines, complete)
+├── ambulatorio.js      # Ambulatory logic: CRUD, financial calc, filters, summary (608 lines)
 ├── login.js            # Auth logic (64 lines, minimal)
 ├── styles.css          # Design system + responsive (902 lines)
 ├── vercel.json         # Deployment config (routing redirect)
@@ -49,6 +64,8 @@ AppHosp/
 ├── README.md           # Project documentation
 ├── BROWNFIELD_MAPPING.md
 ├── .specs/             # Brownfield docs by concern
+├── docs/               # Operational plans and visual maps
+├── scripts/            # SQL and operational helper scripts
 ├── .gitignore          # Git exclusions
 └── .worktrees/         # Git worktree for feature-melhorias branch
 ```
@@ -165,19 +182,33 @@ let isProcessing = false;    // Double-click prevention
 
 ### Database Tables (Supabase)
 1. **patients**
-   - Columns: `id, name, hospital, internacao, dataPrimeiraAvaliacao, dataAlta, status, doctor_id, created_at, updated_at`
+   - Core columns used by the app: `id, patientenome, hospital, internacao, statusmanual, dataprimeiraavaliacao, dataultimavisita`
    - Primary Key: `id` (UUID)
-   - RLS: Visible to doctors; hidden from managers
+   - Source of truth for active/inactive patient state in the census flow
 
 2. **historico**
-   - Columns: `id, patient_id, medico, data, numeroVisitas, created_at`
+   - Core columns used by the app: `id, patient_id, data, medico, visitas`
    - Foreign Key: `patient_id → patients.id`
-   - RLS: Append-only for doctors; read-only for managers
+   - Stores the visit-by-day history used by Registro, Calendário and Repasse
 
 3. **profiles**
-   - Columns: `id, role (doctor|manager), created_at`
+   - Core columns used by the app/planning: `id, role`
    - Foreign Key: `id → auth.users.id`
-   - Used for auth.currentUser.role checks
+   - Used for role checks; `doctor_name` is part of the ambulatory planning
+
+4. **relatorios**
+   - Core columns used by the app: `patient_id, cid10, texto, updated_at`
+   - Stores the textual hospitalization report linked to a patient
+
+5. **repasse_config / repasse_fatura / repasse_paciente**
+   - Support the monthly repasse workflow
+   - `repasse_config` stores percentages, doctor metadata and room discounts
+   - `repasse_fatura` stores the monthly closing header
+   - `repasse_paciente` stores the per-patient financial input for each month
+
+6. **ambulatorio_config / consultas_ambulatoriais**
+   - Active in production; used by `ambulatorio.js` for financial config (single-row) and consultation records
+   - Standalone module fully integrated; accessible via header link from census (admin-only in current rollout)
 
 ### Data Flow Diagram (User Action → UI Update)
 
@@ -922,7 +953,7 @@ User clicks "Exportar CSV" → exportCSV() generates download
 
 **Project Owner**: Dr. Igor Campana  
 **Developed by**: Claude Code (AI Assistant)  
-**Last Updated**: 2026-03-29  
+**Last Updated**: 2026-04-08  
 **Version**: 1.0 (Production)
 
 **For Questions**: Refer to README.md or review code comments in script.js

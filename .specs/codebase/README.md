@@ -1,7 +1,7 @@
 # Codebase Docs Index
 
 **Projeto:** AppHosp  
-**Última revisão:** 2026-03-29
+**Última revisão:** 2026-04-08
 
 Este diretório concentra a documentação brownfield do AppHosp em arquivos curtos por tema.
 
@@ -24,3 +24,4 @@ Para uma visão corrida do sistema inteiro, use `../../BROWNFIELD_MAPPING.md`.
 - Atualize contagens e descrições quando a estrutura do projeto mudar.
 - Prefira refletir o estado real do código em vez de intenções futuras.
 - Registre riscos reais em `CONCERNS.md` e não no README principal.
+- Quando houver feature parcial ou roadmap ativo, explicite isso em vez de misturar com o núcleo já produtivo.

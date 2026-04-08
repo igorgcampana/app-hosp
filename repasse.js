@@ -6,7 +6,7 @@ let historicoMes = [];
 let ambulatorioMes = []; // T22 — consultas ambulatoriais do mês (lidas de consultas_ambulatoriais)
 let _saveTimer = null;
 let _expandedRows = new Set();
-const AMB_COLS = 'id, paciente_nome, data_consulta, medico, conjunta, valor_total, valor_medico, valor_samira, imposto_medico, imposto_samira, administracao_medico, valor_liquido_medico, valor_liquido_samira, status_pagamento, valor_recebido';
+const AMB_COLS = 'id, paciente_nome, data_consulta, medico, consulta_conjunta, valor_total, valor_medico, valor_samira, imposto_medico, imposto_samira, administracao_medico, valor_liquido_medico, valor_liquido_samira, status_pagamento, valor_recebido';
 
 // === HELPERS ===
 function getSelectedMesAno() {
@@ -515,7 +515,7 @@ function calcAmbulatorioResumo(consultas) {
   // Agrupar por médico (apenas consultas conjuntas têm médico)
   const porMedico = {};
   consultas.forEach(c => {
-    if (c.conjunta && c.medico) {
+    if (c.consulta_conjunta && c.medico) {
       if (!porMedico[c.medico]) {
         porMedico[c.medico] = { consultas: 0, valorLiquido: 0 };
       }

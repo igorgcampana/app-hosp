@@ -57,6 +57,7 @@ O deploy é contínuo e automático via **Vercel**.
 ## Decisões técnicas importantes
 - **Segurança Dupla (RBAC + RLS):** O acesso é verificado no Frontend via classe de role no `body` E no Backend pelo Supabase RLS (Row Level Security), com decisões de interface e dados guiadas por `profiles.role`.
 - **Prevenção XSS:** Todo dado injetado no DOM que vem do banco (`innerHTML`) passa por uma função utilitária local `esc(str)` que intercepta tags HTML e scripts maliciosos.
+- **Edge Functions Hardened:** Todo tráfego de inteligência artificial ou APIs de terceiros está isolado no servidor (Gateway Protection). As funções incluem Middlewares de JWT Auth, CORS restrito à Vercel e mitigação contra sobrecarga (Payload limit). Leia a [documentação de Troublehsooting do Backend](docs/security_hardening_edge_function.md).
 - **Sem frameworks/Bundlers:** Por uma escolha de arquitetura pautada na simplicidade máxima, não se usa React, Vue, Webpack ou Vite. 
 - **Event Delegation:** Todos os eventos da SPA (cliques em botões, aberturas de modal, ações nas tabelas) estão acorrentados em um único `document.addEventListener` global usando `data-action` visando estrita performance de memória.
 - **Init defensivo de UI:** O `body` inicia oculto até a sessão ser validada e um loader visual (`#app-loader`) protege contra flash de interface antes do auth check.

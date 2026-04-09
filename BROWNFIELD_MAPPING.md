@@ -137,6 +137,12 @@ body.role-manager #btn-salvar-relatorio {
 - `SELECT` permitted for all authenticated users (filtered by data ownership)
 - Enforced via `auth.users.role` lookup in `profiles` table
 
+#### Layer 3: Edge Functions (API Gateway Protection)
+- **File**: `supabase/functions/processa-conciliacao/index.ts`
+- Intercepts all AI PDF extraction workflows securely.
+- **Defenses**: JWT Authorization via Supabase SDK intercept, restrictive CORS (`.vercel.app`), and 6MB memory-limit payload filtering to mitigate "Vibe Coding" API vulnerabilities (Unauthenticated routes, CORS *, and DDoS payload).
+- 👉 **Documentação de Manutenção Completa:** Leia `docs/security_hardening_edge_function.md`.
+
 **Script Implementation** (lines 14-24):
 ```javascript
 const { data: profile } = await supabaseClient

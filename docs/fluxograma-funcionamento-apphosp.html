@@ -235,6 +235,7 @@ flowchart LR
         <div class="mermaid">
 flowchart TD
     classDef atual fill:#e8f7ee,stroke:#2e7d32,color:#1b4332,stroke-width:2px;
+    classDef planejado fill:#eef3ff,stroke:#4f6bed,color:#233876,stroke-width:2px;
 
     A[Usuario faz login] --> B[Supabase Auth valida sessao]
     B --> C[App busca role em profiles]
@@ -277,7 +278,8 @@ flowchart TD
     M3 --> M4[Mostra glosas e divergencias]
     M4 --> M5[Exporta Excel]
 
-    class A,B,C,D,E,F,H,I,I1,I2,I3,I4,I5,I6,J,J1,J2,K,K1,K2,K3,L,L1,L2,L3,L4,M,M1,M2,M3,M4,M5 atual;
+    class A,B,C,D,E,F,H,I,I1,I2,I3,I4,I5,I6,J,J1,J2,K,K1,K2,K3 atual;
+    class L,L1,L2,L3,L4,M,M1,M2,M3,M4,M5 planejado;
         </div>
       </section>
 

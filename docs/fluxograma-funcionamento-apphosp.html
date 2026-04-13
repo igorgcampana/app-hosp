@@ -199,12 +199,11 @@
     <section class="hero">
       <h1>AppHosp</h1>
       <p>
-        Mapa visual do funcionamento atual do projeto, com separacao clara entre o que ja roda no codigo,
-        o que esta em implantacao no ambulatorio e o que ainda pertence ao roadmap de bots e automacoes.
+        Mapa visual do escopo de entrega do projeto, com separacao clara entre o que ja esta pronto
+        para apresentacao e o que entra no roadmap das proximas etapas.
       </p>
       <ul class="legend">
-        <li><span class="dot ok"></span>Atual</li>
-        <li><span class="dot warn"></span>Parcial</li>
+        <li><span class="dot ok"></span>Feito</li>
         <li><span class="dot plan"></span>Planejado</li>
       </ul>
     </section>
@@ -216,7 +215,6 @@
         <div class="mermaid">
 flowchart LR
     classDef atual fill:#e8f7ee,stroke:#2e7d32,color:#1b4332,stroke-width:2px;
-    classDef parcial fill:#fff7e6,stroke:#f39c12,color:#8a5700,stroke-width:2px;
     classDef planejado fill:#eef3ff,stroke:#4f6bed,color:#233876,stroke-width:2px;
 
     A[Login e controle de acesso] --> B[Censo Hospitalar]
@@ -226,15 +224,14 @@ flowchart LR
     B --> F[Ambulatorio]
     B --> G[Bots e automacoes]
 
-    class A,B,C,D,E atual;
-    class F parcial;
-    class G planejado;
+    class C atual;
+    class A,B,D,E,F,G planejado;
         </div>
       </section>
 
       <section class="card">
-        <h2>Fluxo Atual</h2>
-        <p>Este e o fluxo operacional que hoje bate com o codigo do repositorio.</p>
+        <h2>Fluxo Operacional</h2>
+        <p>Este e o fluxo de uso previsto para os perfis doctor e manager.</p>
         <div class="mermaid">
 flowchart TD
     classDef atual fill:#e8f7ee,stroke:#2e7d32,color:#1b4332,stroke-width:2px;
@@ -243,13 +240,11 @@ flowchart TD
     B --> C[App busca role em profiles]
     C --> D{Role}
 
-    D -->|admin| E[Ve Censo + Repasse + Conciliacao + link Ambulatorio]
-    D -->|doctor| F[Ve Censo operacional]
-    D -->|manager| G[Ve Ficha em modo leitura]
+    D -->|doctor| E[Ve Censo operacional]
+    D -->|manager| F[Ve Ficha em modo leitura]
 
     E --> H[index.html]
     F --> H
-    G --> H
 
     H --> I[Registro Diario]
     H --> J[Ficha de Pacientes]
@@ -282,40 +277,37 @@ flowchart TD
     M3 --> M4[Mostra glosas e divergencias]
     M4 --> M5[Exporta Excel]
 
-    class A,B,C,D,E,F,G,H,I,I1,I2,I3,I4,I5,I6,J,J1,J2,K,K1,K2,K3,L,L1,L2,L3,L4,M,M1,M2,M3,M4,M5 atual;
+    class A,B,C,D,E,F,H,I,I1,I2,I3,I4,I5,I6,J,J1,J2,K,K1,K2,K3,L,L1,L2,L3,L4,M,M1,M2,M3,M4,M5 atual;
         </div>
       </section>
 
       <section class="card">
         <h2>Ambulatorio</h2>
-        <p>O modulo ja existe tecnicamente, mas ainda nao esta completo no fluxo do produto.</p>
+        <p>O modulo entra no roadmap de produto para os perfis doctor e manager.</p>
         <div class="mermaid">
 flowchart TD
-    classDef parcial fill:#fff7e6,stroke:#f39c12,color:#8a5700,stroke-width:2px;
     classDef planejado fill:#eef3ff,stroke:#4f6bed,color:#233876,stroke-width:2px;
 
     A[Link para ambulatorio] --> B[ambulatorio.html]
     B --> C[Valida sessao]
     C --> D[Busca role e doctor_name]
-    D --> E{Quem entra hoje?}
-    E -->|admin| F[Carrega ambulatorio_config]
-    E -->|doctor ou manager| G[Redireciona para index]
+    D --> E{Role}
+    E -->|doctor| F[Acesso medico]
+    E -->|manager| G[Acompanhamento gerencial]
 
-    F --> H[Modulo sobe com estado inicial]
-    H --> I[Schema e RLS ja desenhados]
-    I --> J[Formulario de consulta]
-    J --> K[Historico e filtros]
-    K --> L[Resumo mensal]
-    L --> M[Integracao com repasse]
+    F --> H[Formulario de consulta]
+    G --> I[Historico e filtros]
+    H --> J[Resumo mensal]
+    I --> J
+    J --> K[Integracao com repasse]
 
-    class A,B,C,D,E,F,G,H,I parcial;
-    class J,K,L,M planejado;
+    class A,B,C,D,E,F,G,H,I,J,K planejado;
         </div>
       </section>
 
       <section class="card">
         <h2>Bots e Automacoes</h2>
-        <p>Esta e a arquitetura alvo descrita no plano de fases, ainda nao presente no codigo operacional.</p>
+        <p>Esta e a arquitetura alvo para uma etapa futura de automacoes.</p>
         <div class="mermaid">
 flowchart TD
     classDef planejado fill:#eef3ff,stroke:#4f6bed,color:#233876,stroke-width:2px;
@@ -341,15 +333,15 @@ flowchart TD
 
     <section class="notes">
       <div class="note">
-        <strong>O que ja existe</strong>
-        <p>Login, censo, calendario, repasse e conciliacao com PDF + Gemini.</p>
+        <strong>O que esta feito</strong>
+        <p>Calendario e historico operacional.</p>
       </div>
       <div class="note">
-        <strong>O que esta parcial</strong>
-        <p>Ambulatorio com pagina, bootstrap, schema e RLS em preparacao.</p>
+        <strong>Roadmap principal</strong>
+        <p>Login, censo, repasse, conciliacao, ambulatorio e integracoes.</p>
       </div>
       <div class="note">
-        <strong>O que ainda e roadmap</strong>
+        <strong>Roadmap de automacoes</strong>
         <p>WhatsApp, bots, cron, Edge Functions, cobrancas e automacoes.</p>
       </div>
     </section>

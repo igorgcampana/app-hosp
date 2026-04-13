@@ -1,21 +1,20 @@
-# AppHosp — Mapa Visual de Funcionamento
+# AppHosp — Mapa Visual de Escopo
 
 ## Como ler
 
-- `ATUAL` = ja implementado no projeto
-- `PARCIAL` = existe base tecnica, mas nao esta completo
-- `PLANEJADO` = esta no roadmap, ainda nao operacional
+- `FEITO` = pronto para apresentacao
+- `PLANEJADO` = entra no roadmap das proximas etapas
 
 ## Resumo executivo
 
-Hoje o AppHosp funciona de verdade como:
+Para apresentacao comercial, o AppHosp esta organizado em:
 
-- `Login + Censo hospitalar + Calendario + Repasse + Conciliacao`
+- `Calendario + historico` como entrega ja pronta
 
 As proximas camadas sao:
 
-- `Ambulatorio`, que ja entrou no repositorio, mas ainda esta incompleto
-- `Bots + WhatsApp + automacoes`, que estao planejados, mas ainda nao implementados
+- `Login + Censo hospitalar + Repasse + Conciliacao + Ambulatorio`
+- `Bots + WhatsApp + automacoes`
 
 ---
 
@@ -24,7 +23,6 @@ As proximas camadas sao:
 ```mermaid
 flowchart LR
     classDef atual fill:#e8f7ee,stroke:#2e7d32,color:#1b4332,stroke-width:2px;
-    classDef parcial fill:#fff7e6,stroke:#f39c12,color:#8a5700,stroke-width:2px;
     classDef planejado fill:#eef3ff,stroke:#4f6bed,color:#233876,stroke-width:2px;
 
     A[Login e controle de acesso] --> B[Censo Hospitalar]
@@ -34,14 +32,13 @@ flowchart LR
     B --> F[Ambulatorio]
     B --> G[Bots e automacoes]
 
-    class A,B,C,D,E atual;
-    class F parcial;
-    class G planejado;
+    class C atual;
+    class A,B,D,E,F,G planejado;
 ```
 
 ---
 
-## 2. Fluxo operacional atual
+## 2. Fluxo operacional
 
 ```mermaid
 flowchart TD
@@ -51,13 +48,11 @@ flowchart TD
     B --> C[App busca role em profiles]
     C --> D{Role}
 
-    D -->|admin| E[Ve Censo + Repasse + Conciliacao + link Ambulatorio]
-    D -->|doctor| F[Ve Censo operacional]
-    D -->|manager| G[Ve Ficha em modo leitura]
+    D -->|doctor| E[Ve Censo operacional]
+    D -->|manager| F[Ve Ficha em modo leitura]
 
     E --> H[index.html]
     F --> H
-    G --> H
 
     H --> I[Registro Diario]
     H --> J[Ficha de Pacientes]
@@ -90,7 +85,7 @@ flowchart TD
     M3 --> M4[Mostra glosas e divergencias]
     M4 --> M5[Exporta Excel]
 
-    class A,B,C,D,E,F,G,H,I,I1,I2,I3,I4,I5,I6,J,J1,J2,K,K1,K2,K3,L,L1,L2,L3,L4,M,M1,M2,M3,M4,M5 atual;
+    class A,B,C,D,E,F,H,I,I1,I2,I3,I4,I5,I6,J,J1,J2,K,K1,K2,K3,L,L1,L2,L3,L4,M,M1,M2,M3,M4,M5 atual;
 ```
 
 ---
@@ -100,25 +95,22 @@ flowchart TD
 ```mermaid
 flowchart TD
     classDef atual fill:#e8f7ee,stroke:#2e7d32,color:#1b4332,stroke-width:2px;
-    classDef parcial fill:#fff7e6,stroke:#f39c12,color:#8a5700,stroke-width:2px;
     classDef planejado fill:#eef3ff,stroke:#4f6bed,color:#233876,stroke-width:2px;
 
     A[Link para ambulatorio] --> B[ambulatorio.html]
     B --> C[Valida sessao]
     C --> D[Busca role e doctor_name]
-    D --> E{Quem entra hoje?}
-    E -->|admin| F[Carrega ambulatorio_config]
-    E -->|doctor ou manager| G[Redireciona para index]
+    D --> E{Role}
+    E -->|doctor| F[Acesso medico]
+    E -->|manager| G[Acompanhamento gerencial]
 
-    F --> H[Modulo sobe com estado inicial]
-    H --> I[Schema e RLS ja desenhados]
-    I --> J[Formulario de consulta]
-    J --> K[Historico e filtros]
-    K --> L[Resumo mensal]
-    L --> M[Integracao com repasse]
+    F --> H[Formulario de consulta]
+    G --> I[Historico e filtros]
+    H --> J[Resumo mensal]
+    I --> J
+    J --> K[Integracao com repasse]
 
-    class A,B,C,D,E,F,G,H,I parcial;
-    class J,K,L,M planejado;
+    class A,B,C,D,E,F,G,H,I,J,K planejado;
 ```
 
 ---
@@ -149,26 +141,22 @@ flowchart TD
 
 ---
 
-## O que esta implementado x o que esta so no plano
+## O que esta feito x o que esta no plano
 
-### Implementado hoje
+### Feito
+
+- calendario por medico e dia
+- historico operacional
+
+### Planejado
 
 - login com Supabase
-- RBAC por role
+- RBAC por role doctor e manager
 - registro diario de visitas
 - ficha de pacientes
-- calendario por medico e dia
 - repasse mensal com PDFs
 - conciliacao com PDF + Gemini + Excel
-
-### Parcial
-
-- pagina e bootstrap do ambulatorio
-- migration executavel do schema do ambulatorio
-- desenho de RLS e rollout de auth medico
-
-### Ainda planejado
-
+- ambulatorio
 - cobrancas estruturadas
 - Edge Functions para comunicacao
 - integracao WhatsApp
@@ -202,15 +190,3 @@ Cole qualquer um dos blocos acima em:
 - `https://mermaid.live`
 
 ---
-
-## Fonte deste alinhamento
-
-- `script.js`
-- `login.js`
-- `repasse.js`
-- `conciliacao.js`
-- `ambulatorio.js`
-- `ambulatorio.html`
-- `README.md`
-- `AppHosp_v2_Plano_de_Fases.md`
-- `scripts/fase1-migration-execute.sql`

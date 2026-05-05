@@ -159,6 +159,18 @@
 
           <div class="form-row">
             <div class="form-group">
+              <label for="leito">Leito</label>
+              <input type="text" id="leito" name="leito" placeholder="Ex: 1204A" required>
+            </div>
+            <div class="form-group">
+              <label for="telefone">Telefone</label>
+              <input type="tel" id="telefone" name="telefone" placeholder="(11) 99999-9999" maxlength="15"
+                inputmode="tel">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
               <label for="hospital">Hospital</label>
               <select id="hospital" name="hospital" required></select>
             </div>
@@ -239,6 +251,8 @@
             <thead>
               <tr>
                 <th data-sort="pacienteNome">Nome &#x21D5;</th>
+                <th data-sort="leito">Leito &#x21D5;</th>
+                <th data-sort="telefone">Telefone &#x21D5;</th>
                 <th data-sort="internacao">Internação &#x21D5;</th>
                 <th data-sort="hospital">Hospital &#x21D5;</th>
                 <th data-sort="status">Status &#x21D5;</th>
@@ -463,6 +477,14 @@
         <div class="form-group">
           <label for="edit-nome">Nome do Paciente</label>
           <input type="text" id="edit-nome">
+        </div>
+        <div class="form-group">
+          <label for="edit-leito">Leito</label>
+          <input type="text" id="edit-leito">
+        </div>
+        <div class="form-group">
+          <label for="edit-telefone">Telefone</label>
+          <input type="tel" id="edit-telefone" placeholder="(11) 99999-9999" maxlength="15" inputmode="tel">
         </div>
         <div class="form-group">
           <label for="edit-internacao">Internação</label>

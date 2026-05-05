@@ -367,6 +367,10 @@ table {
   text-align: left;
 }
 
+#patients-table {
+  min-width: 1120px;
+}
+
 th {
   font-family: var(--font-title);
   background-color: var(--color-primary);
@@ -388,6 +392,24 @@ td {
   padding: 1rem;
   border-bottom: 1px solid var(--color-border);
   font-size: 0.95rem;
+}
+
+#patients-table .col-actions {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background: var(--color-white);
+  box-shadow: -8px 0 12px rgba(32, 81, 95, 0.08);
+  white-space: nowrap;
+}
+
+#patients-table th.col-actions {
+  z-index: 4;
+  background: var(--color-primary);
+}
+
+#patients-table tbody tr:hover .col-actions {
+  background-color: #f5f8f8;
 }
 
 tbody tr {
@@ -836,6 +858,10 @@ tbody tr:hover {
     display: none;
   }
 
+  #patients-table {
+    min-width: 0;
+  }
+
   #patients-table tbody tr {
     display: block;
     background: var(--color-white);
@@ -870,6 +896,12 @@ tbody tr:hover {
     padding-top: 0.75rem;
     border-top: 1px solid var(--color-border);
     margin-top: 0.5rem;
+  }
+
+  #patients-table .col-actions {
+    position: static;
+    box-shadow: none;
+    background: transparent;
   }
 
   /* Conserta o traço fantasma no meio do calendário gerado pelo gradiente de overlay */

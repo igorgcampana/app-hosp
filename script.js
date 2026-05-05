@@ -74,6 +74,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const pacienteInput = document.getElementById('pacienteInput');
   const suggestionsBox = document.getElementById('suggestions-box');
   const selectedPatientId = document.getElementById('selectedPatientId');
+  const inputLeito = document.getElementById('leito');
+  const inputTelefone = document.getElementById('telefone');
   const inputHospital = document.getElementById('hospital');
   const inputInternacao = document.getElementById('internacao');
   const inputDataVisita = document.getElementById('dataVisita');
@@ -107,6 +109,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // DOM Elements - Edit Patient Modal
   const editModal = document.getElementById('edit-patient-modal');
   const editNome = document.getElementById('edit-nome');
+  const editLeito = document.getElementById('edit-leito');
+  const editTelefone = document.getElementById('edit-telefone');
   const editHospital = document.getElementById('edit-hospital');
   const editInternacao = document.getElementById('edit-internacao');
   const editAlta = document.getElementById('edit-alta');
@@ -170,6 +174,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   function escAttr(str) {
     if (!str) return '';
     return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function displayOrDash(value) {
+    const clean = String(value || '').trim();
+    return clean ? esc(clean) : '&mdash;';
+  }
+
+  function formatPhone(value) {
+    const digits = String(value || '').replace(/\D/g, '').slice(0, 11);
+    if (digits.length <= 2) return digits ? `(${digits}` : '';
+    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  }
+
+  function isPhoneValid(value) {
+    if (!value) return true;
+    return /^\(\d{2}\) \d{5}-\d{4}$/.test(value);
+  }
+
+  function csvCell(value) {
+    return `"${String(value || '').replace(/"/g, '""')}"`;
   }
 
   function showToast(message) {
@@ -314,6 +339,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     return {
       id: dbPat.id,
       pacienteNome: dbPat.pacientenome || '(Sem nome)',
+      leito: dbPat.leito || '',
+      telefone: dbPat.telefone || '',
       hospital: dbPat.hospital,
       internacao: dbPat.internacao,
       statusManual: dbPat.statusmanual,
@@ -394,6 +421,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderPrevDayTable();
     });
 
+    inputTelefone.addEventListener('input', () => {
+      inputTelefone.value = formatPhone(inputTelefone.value);
+    });
+
+    editTelefone.addEventListener('input', () => {
+      editTelefone.value = formatPhone(editTelefone.value);
+    });
+
     setupNavigation();
     setupAutocomplete();
     setupForm();
@@ -468,9 +503,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ─────────────────────────────────────────
   // SEÇÃO: FUNÇÕES DE DADOS (REGISTRO E VISITAS)
   // ─────────────────────────────────────────
-  async function createPatientWithVisit({ nome, hospital, internacao, ehAlta, dataVisita, numeroVisitas, medico }) {
+  async function createPatientWithVisit({ nome, leito, telefone, hospital, internacao, ehAlta, dataVisita, numeroVisitas, medico }) {
     const { data: newPat, error } = await supabaseClient.from('patients').insert({
       pacientenome: nome,
+      leito: leito,
+      telefone: telefone || null,
       hospital: hospital,
       internacao: internacao,
       statusmanual: ehAlta ? STATUS.ALTA : STATUS.INTERNADO,
@@ -495,7 +532,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return { success: true, patientId: newPat?.id };
   }
 
-  async function addVisitToExistingPatient({ selectedId, hospital, internacao, ehAlta, dataVisita, numeroVisitas, medico }) {
+  async function addVisitToExistingPatient({ selectedId, leito, telefone, hospital, internacao, ehAlta, dataVisita, numeroVisitas, medico }) {
     const p = patients.find(pat => pat.id === selectedId);
     if (!p) return { success: false };
 
@@ -507,6 +544,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const { error: errUpdate } = await supabaseClient.from('patients').update({
+      leito: leito,
+      telefone: telefone || null,
       hospital: hospital,
       internacao: internacao,
       statusmanual: novoStatus
@@ -552,6 +591,21 @@ document.addEventListener('DOMContentLoaded', async () => {
           return;
         }
 
+        const leito = inputLeito.value.trim();
+        const telefone = inputTelefone.value.trim();
+
+        if (!leito) {
+          showToast('Informe o leito do paciente.');
+          inputLeito.focus();
+          return;
+        }
+
+        if (!isPhoneValid(telefone)) {
+          showToast('Telefone deve estar no formato (xx) xxxxx-xxxx.');
+          inputTelefone.focus();
+          return;
+        }
+
         const hospital = inputHospital.value;
         const internacao = inputInternacao.value;
         const ehAlta = inputMarcarAlta.checked;
@@ -570,9 +624,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         let result;
         if (isNovo) {
-          result = await createPatientWithVisit({ nome, hospital, internacao, ehAlta, dataVisita, numeroVisitas, medico });
+          result = await createPatientWithVisit({ nome, leito, telefone, hospital, internacao, ehAlta, dataVisita, numeroVisitas, medico });
         } else {
-          result = await addVisitToExistingPatient({ selectedId, hospital, internacao, ehAlta, dataVisita, numeroVisitas, medico });
+          result = await addVisitToExistingPatient({ selectedId, leito, telefone, hospital, internacao, ehAlta, dataVisita, numeroVisitas, medico });
         }
 
         if (result && result.success) {
@@ -580,6 +634,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
           pacienteInput.value = '';
           selectedPatientId.value = '';
+          inputLeito.value = '';
+          inputTelefone.value = '';
           inputNumeroVisitas.value = '1';
           inputMarcarAlta.checked = false;
 
@@ -609,6 +665,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     pacienteInput.addEventListener('input', () => {
       clearTimeout(debounceTimer);
       selectedPatientId.value = ''; // Resetar seleção ao digitar
+      inputLeito.value = '';
+      inputTelefone.value = '';
 
       debounceTimer = setTimeout(() => {
         const query = pacienteInput.value.trim().toLowerCase();
@@ -652,6 +710,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           item.addEventListener('click', () => {
             pacienteInput.value = p.pacienteNome;
             selectedPatientId.value = p.id;
+            inputLeito.value = p.leito || '';
+            inputTelefone.value = formatPhone(p.telefone);
             inputHospital.value = p.hospital;
             if (p.internacao) inputInternacao.value = p.internacao;
             suggestionsBox.style.display = 'none';
@@ -837,6 +897,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         valA = diasDeInternacao(a.dataPrimeiraAvaliacao, a.dataUltimaVisita);
         valB = diasDeInternacao(b.dataPrimeiraAvaliacao, b.dataUltimaVisita);
       }
+      if (valA == null) valA = '';
+      if (valB == null) valB = '';
 
       if (valA < valB) return currentSort.dir === 'asc' ? -1 : 1;
       if (valA > valB) return currentSort.dir === 'asc' ? 1 : -1;
@@ -851,7 +913,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     emptyPatients.style.display = 'none';
     patientsTableBody.parentElement.style.display = 'table';
 
-    const labels = ['Nome', 'Internação', 'Hospital', 'Status', '1ª Aval.', 'Última', 'Dias', 'Relatório', ''];
+    const labels = ['Nome', 'Leito', 'Telefone', 'Internação', 'Hospital', 'Status', '1ª Aval.', 'Última', 'Dias', 'Relatório', ''];
 
     filtered.forEach(p => {
       const dias = diasDeInternacao(p.dataPrimeiraAvaliacao, p.dataUltimaVisita);
@@ -859,6 +921,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${esc(p.pacienteNome)}</td>
+        <td>${displayOrDash(p.leito)}</td>
+        <td>${displayOrDash(p.telefone)}</td>
         <td>${esc(p.internacao || 'Particular')}</td>
         <td>${esc(p.hospital)}</td>
         <td>
@@ -872,7 +936,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td style="text-align:center; font-size:1.1rem; color:${temRelatorio ? '#2e7d32' : '#c62828'};">${temRelatorio ? '✓' : '✗'}</td>
         <td class="col-actions">
 <button class="btn-action" title="Relatório de Internação" data-action="view-relatorio" data-patient-id="${escAttr(p.id)}">📋</button>
-<button class="btn-action" title="Editar Nome e Hospital" data-action="edit-patient" data-patient-id="${escAttr(p.id)}">✏️</button>
+<button class="btn-action" title="Editar Dados do Paciente" data-action="edit-patient" data-patient-id="${escAttr(p.id)}">✏️</button>
            <button class="btn-action" title="Excluir Paciente" data-action="delete-patient" data-patient-id="${escAttr(p.id)}">🗑️</button>
         </td>
       `;
@@ -890,6 +954,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     currentEditingPatientId = id;
     editNome.value = p.pacienteNome;
+    editLeito.value = p.leito || '';
+    editTelefone.value = formatPhone(p.telefone);
     editHospital.value = p.hospital;
     editInternacao.value = p.internacao || 'Particular';
     editAlta.checked = p.statusManual === STATUS.ALTA;
@@ -1021,11 +1087,19 @@ São Paulo, ${dataExtenso}`;
       const p = patients.find(pat => pat.id === currentEditingPatientId);
       if (p) {
         const newNome = editNome.value.trim();
+        const newLeito = editLeito.value.trim();
+        const newTelefone = editTelefone.value.trim();
         const newHospital = editHospital.value;
         const newInternacao = editInternacao.value;
         const ehAlta = editAlta.checked;
 
         if (newNome) {
+          if (newTelefone && !isPhoneValid(newTelefone)) {
+            showToast('Telefone deve estar no formato (xx) xxxxx-xxxx.');
+            editTelefone.focus();
+            return;
+          }
+
           isProcessing = true;
           let novoStatus = p.statusManual;
           if (ehAlta) {
@@ -1040,6 +1114,8 @@ São Paulo, ${dataExtenso}`;
           try {
             const { error } = await supabaseClient.from('patients').update({
               pacientenome: newNome,
+              leito: newLeito || null,
+              telefone: newTelefone || null,
               hospital: newHospital,
               internacao: newInternacao,
               statusmanual: novoStatus,
@@ -1219,13 +1295,23 @@ São Paulo, ${dataExtenso}`;
   }
 
   function exportCSV() {
-    let csvContent = "Nome,Internação,Hospital,Status,Primeira Avaliacao,Ultima Visita,Dias de Internacao\n";
+    let csvContent = "Nome,Leito,Telefone,Internação,Hospital,Status,Primeira Avaliacao,Ultima Visita,Dias de Internacao\n";
     getFilteredPatients().forEach(p => {
       const dias = diasDeInternacao(p.dataPrimeiraAvaliacao, p.dataUltimaVisita);
       const statusStr = p.isInternado ? STATUS.INTERNADO : STATUS.ALTA;
       const internacaoStr = p.internacao || 'Particular';
 
-      const row = `"${p.pacienteNome}","${internacaoStr}","${p.hospital}","${statusStr}","${formatDateBR(p.dataPrimeiraAvaliacao)}","${formatDateBR(p.dataUltimaVisita)}","${dias}"`;
+      const row = [
+        p.pacienteNome,
+        p.leito,
+        p.telefone,
+        internacaoStr,
+        p.hospital,
+        statusStr,
+        formatDateBR(p.dataPrimeiraAvaliacao),
+        formatDateBR(p.dataUltimaVisita),
+        dias
+      ].map(csvCell).join(',');
       csvContent += row + "\n";
     });
 

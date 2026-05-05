@@ -1066,9 +1066,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       .filter(p => p.isInternado && !isManualStatusAlta(p))
       .sort(compareByLeitoThenName);
 
+    const listaHospitalOrder = ['HSL', 'H9J', 'HVNS'];
     const hospitalOrder = [
-      ...HOSPITALS,
-      ...[...new Set(internados.map(p => p.hospital).filter(Boolean))].filter(h => !HOSPITALS.includes(h))
+      ...listaHospitalOrder,
+      ...[...new Set(internados.map(p => p.hospital).filter(Boolean))].filter(h => !listaHospitalOrder.includes(h))
     ];
 
     const altas = filteredByContext

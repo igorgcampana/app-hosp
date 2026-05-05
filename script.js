@@ -314,6 +314,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     return true;
   }
 
+  function isManualStatusAlta(patient) {
+    return String(patient.statusManual || '').trim().toLowerCase() === STATUS.ALTA.toLowerCase();
+  }
+
   async function recalcPatientDates(patientId) {
     const { data: histData, error: errHist } = await supabaseClient
       .from('historico')
@@ -1013,8 +1017,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function generateListaPacientesText() {
     const referenceDate = filterEndDate?.value || today;
-    const startDate = filterStartDate?.value || '';
-    const endDate = filterEndDate?.value || referenceDate;
+    const altasStartDateObj = parseDate(referenceDate);
+    altasStartDateObj.setDate(altasStartDateObj.getDate() - 1);
+    const altasStartDate = `${altasStartDateObj.getFullYear()}-${String(altasStartDateObj.getMonth() + 1).padStart(2, '0')}-${String(altasStartDateObj.getDate()).padStart(2, '0')}`;
     const hospitalFilter = filterHospital?.value || 'Todos';
     const internacaoFilter = filterInternacao?.value || 'Todos';
 
@@ -1026,7 +1031,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     const internados = filteredByContext
-      .filter(p => isPatientActive(p, referenceDate))
+      .filter(p => !isManualStatusAlta(p) && isPatientActive(p, referenceDate))
       .sort(compareByLeitoThenName);
 
     const hospitalOrder = [
@@ -1035,11 +1040,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     ];
 
     const altas = filteredByContext
-      .filter(p => p.statusManual === STATUS.ALTA)
+      .filter(p => isManualStatusAlta(p))
       .filter(p => {
-        if (startDate && p.dataUltimaVisita < startDate) return false;
-        if (endDate && p.dataUltimaVisita > endDate) return false;
-        return true;
+        return p.dataUltimaVisita >= altasStartDate && p.dataUltimaVisita <= referenceDate;
       })
       .sort((a, b) => {
         if (a.dataUltimaVisita !== b.dataUltimaVisita) {

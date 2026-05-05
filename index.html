@@ -241,6 +241,7 @@
             <span>até</span>
             <input type="date" id="filter-end-date" title="Data Fim">
           </div>
+          <button id="btn-gerar-lista-pacientes" class="btn-secondary">Gerar Lista</button>
           <button id="btn-export" class="btn-secondary">Exportar CSV</button>
         </div>
       </header>
@@ -466,6 +467,22 @@
           <button id="btn-salvar-relatorio" class="btn-primary" style="flex:1;">Salvar</button>
           <button id="btn-excluir-relatorio" class="btn-secondary" style="flex:1; display:none; color:#c62828; border-color:#c62828;">Excluir</button>
           <button id="btn-fechar-relatorio" class="btn-secondary" style="flex:1;">Fechar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Lista de Pacientes Internados -->
+    <div id="lista-pacientes-modal" class="modal-overlay">
+      <div class="card modal-card" style="max-width: 620px;">
+        <h3>Lista de Pacientes</h3>
+        <div class="form-group">
+          <label for="lista-pacientes-texto">Texto da Lista</label>
+          <textarea id="lista-pacientes-texto" rows="16"
+            style="width: 100%; font-family: var(--font-body); font-size: 0.9rem; resize: vertical; padding: 0.6rem; border: 1px solid #ccc; border-radius: 6px;"></textarea>
+        </div>
+        <div class="form-row" style="margin-top: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+          <button id="btn-copiar-lista-pacientes" class="btn-primary" style="flex:1;">Copiar</button>
+          <button id="btn-fechar-lista-pacientes" class="btn-secondary" style="flex:1;">Fechar</button>
         </div>
       </div>
     </div>

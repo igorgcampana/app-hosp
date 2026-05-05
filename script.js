@@ -96,6 +96,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const filterStartDate = document.getElementById('filter-start-date');
   const filterEndDate = document.getElementById('filter-end-date');
   const btnExport = document.getElementById('btn-export');
+  const btnGerarListaPacientes = document.getElementById('btn-gerar-lista-pacientes');
   const thSortables = document.querySelectorAll('th[data-sort]');
 
   // DOM Elements - Screen 3 (Calendario)
@@ -141,6 +142,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnExcluirRelatorio = document.getElementById('btn-excluir-relatorio');
   const btnFecharRelatorio = document.getElementById('btn-fechar-relatorio');
   let currentRelatorioPatientId = null;
+
+  // DOM Elements - Lista de Pacientes Modal
+  const listaPacientesModal = document.getElementById('lista-pacientes-modal');
+  const listaPacientesTexto = document.getElementById('lista-pacientes-texto');
+  const btnCopiarListaPacientes = document.getElementById('btn-copiar-lista-pacientes');
+  const btnFecharListaPacientes = document.getElementById('btn-fechar-lista-pacientes');
 
   if (userRole === 'manager') {
     relatorioTextarea.readOnly = true;
@@ -289,6 +296,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const parts = dateStr.split('-');
     if (parts.length !== 3) return dateStr;
     return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+
+  function formatDateShortYear(dateStr) {
+    const full = formatDateBR(dateStr);
+    return full ? full.replace(/\/(\d{2})\d{2}$/, '/$1') : '';
+  }
+
+  function formatDateDayMonth(dateStr) {
+    const full = formatDateBR(dateStr);
+    return full ? full.slice(0, 5) : '';
   }
 
   function isPatientActive(patient, referenceDate) {
@@ -824,6 +841,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (filterStatus) filterStatus.addEventListener('change', renderPatientsTable);
     if (filterStartDate) filterStartDate.addEventListener('change', renderPatientsTable);
     if (filterEndDate) filterEndDate.addEventListener('change', renderPatientsTable);
+    btnGerarListaPacientes.addEventListener('click', openListaPacientesModal);
     btnExport.addEventListener('click', exportCSV);
   }
 
@@ -982,6 +1000,87 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (await showConfirm('Deseja preencher o relatório de alta agora?', 'Relatório de Alta')) {
       await openRelatorioModal(patientId);
     }
+  }
+
+  function compareByLeitoThenName(a, b) {
+    const leitoCompare = String(a.leito || '').localeCompare(String(b.leito || ''), 'pt-BR', {
+      numeric: true,
+      sensitivity: 'base'
+    });
+    if (leitoCompare !== 0) return leitoCompare;
+    return a.pacienteNome.localeCompare(b.pacienteNome, 'pt-BR', { sensitivity: 'base' });
+  }
+
+  function generateListaPacientesText() {
+    const referenceDate = filterEndDate?.value || today;
+    const startDate = filterStartDate?.value || '';
+    const endDate = filterEndDate?.value || referenceDate;
+    const hospitalFilter = filterHospital?.value || 'Todos';
+    const internacaoFilter = filterInternacao?.value || 'Todos';
+
+    const filteredByContext = patients.filter(p => {
+      const matchHospital = hospitalFilter === 'Todos' || p.hospital === hospitalFilter;
+      const patientInternacao = p.internacao || 'Particular';
+      const matchInternacao = internacaoFilter === 'Todos' || patientInternacao === internacaoFilter;
+      return matchHospital && matchInternacao;
+    });
+
+    const internados = filteredByContext
+      .filter(p => isPatientActive(p, referenceDate))
+      .sort(compareByLeitoThenName);
+
+    const hospitalOrder = [
+      ...HOSPITALS,
+      ...[...new Set(internados.map(p => p.hospital).filter(Boolean))].filter(h => !HOSPITALS.includes(h))
+    ];
+
+    const altas = filteredByContext
+      .filter(p => p.statusManual === STATUS.ALTA)
+      .filter(p => {
+        if (startDate && p.dataUltimaVisita < startDate) return false;
+        if (endDate && p.dataUltimaVisita > endDate) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        if (a.dataUltimaVisita !== b.dataUltimaVisita) {
+          return a.dataUltimaVisita.localeCompare(b.dataUltimaVisita);
+        }
+        return a.pacienteNome.localeCompare(b.pacienteNome, 'pt-BR', { sensitivity: 'base' });
+      });
+
+    const lines = [formatDateShortYear(referenceDate), ''];
+
+    hospitalOrder.forEach(hospital => {
+      const hospitalPatients = internados.filter(p => p.hospital === hospital);
+      if (hospitalPatients.length === 0) return;
+
+      lines.push(hospital, '');
+      hospitalPatients.forEach(p => {
+        lines.push(
+          p.leito || 'Sem leito',
+          p.pacienteNome,
+          `Primeira avaliação ${formatDateDayMonth(p.dataPrimeiraAvaliacao)}`,
+          p.internacao || 'Particular',
+          ''
+        );
+      });
+    });
+
+    if (altas.length > 0) {
+      lines.push('Altas');
+      altas.forEach(p => {
+        lines.push(`${p.pacienteNome} - primeira aval ${formatDateDayMonth(p.dataPrimeiraAvaliacao)} - ${formatDateDayMonth(p.dataUltimaVisita)}`);
+      });
+    }
+
+    return lines.join('\n').trim();
+  }
+
+  function openListaPacientesModal() {
+    listaPacientesTexto.value = generateListaPacientesText();
+    listaPacientesModal.classList.add('active');
+    listaPacientesTexto.focus();
+    listaPacientesTexto.select();
   }
 
   function generateReportText(p, textoLivre = '') {
@@ -1184,6 +1283,22 @@ São Paulo, ${dataExtenso}`;
         relatorioModal.classList.remove('active');
         currentRelatorioPatientId = null;
       }
+    });
+
+    btnFecharListaPacientes.addEventListener('click', () => {
+      listaPacientesModal.classList.remove('active');
+    });
+
+    listaPacientesModal.addEventListener('click', (e) => {
+      if (e.target === listaPacientesModal) {
+        listaPacientesModal.classList.remove('active');
+      }
+    });
+
+    btnCopiarListaPacientes.addEventListener('click', () => {
+      const text = listaPacientesTexto.value;
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(() => showToast('Lista copiada!')).catch(() => showToast('Erro ao copiar.'));
     });
 
     btnGerarRelatorio.addEventListener('click', () => {

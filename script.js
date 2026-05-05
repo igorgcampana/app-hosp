@@ -1015,6 +1015,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     return a.pacienteNome.localeCompare(b.pacienteNome, 'pt-BR', { sensitivity: 'base' });
   }
 
+  function normalizePatientName(name) {
+    return String(name || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
+  function chooseMostRecentPatientRecord(current, candidate) {
+    if (!current) return candidate;
+
+    const currentDate = current.dataUltimaVisita || current.dataPrimeiraAvaliacao || '';
+    const candidateDate = candidate.dataUltimaVisita || candidate.dataPrimeiraAvaliacao || '';
+
+    if (candidateDate > currentDate) return candidate;
+    if (candidateDate < currentDate) return current;
+
+    if (isManualStatusAlta(candidate) && !isManualStatusAlta(current)) return candidate;
+    return current;
+  }
+
+  function dedupePatientsForLista(sourcePatients) {
+    const byName = new Map();
+    sourcePatients.forEach(p => {
+      const key = normalizePatientName(p.pacienteNome);
+      if (!key) return;
+      byName.set(key, chooseMostRecentPatientRecord(byName.get(key), p));
+    });
+    return Array.from(byName.values());
+  }
+
   function generateListaPacientesText() {
     const referenceDate = filterEndDate?.value || today;
     const altasStartDateObj = parseDate(referenceDate);
@@ -1023,7 +1050,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const hospitalFilter = filterHospital?.value || 'Todos';
     const internacaoFilter = filterInternacao?.value || 'Todos';
 
-    const filteredByContext = patients.map(p => ({
+    const listaPatients = dedupePatientsForLista(patients);
+
+    const filteredByContext = listaPatients.map(p => ({
       ...p,
       isInternado: isPatientActive(p, today)
     })).filter(p => {

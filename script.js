@@ -1023,7 +1023,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const hospitalFilter = filterHospital?.value || 'Todos';
     const internacaoFilter = filterInternacao?.value || 'Todos';
 
-    const filteredByContext = patients.filter(p => {
+    const filteredByContext = patients.map(p => ({
+      ...p,
+      isInternado: isPatientActive(p, today)
+    })).filter(p => {
       const matchHospital = hospitalFilter === 'Todos' || p.hospital === hospitalFilter;
       const patientInternacao = p.internacao || 'Particular';
       const matchInternacao = internacaoFilter === 'Todos' || patientInternacao === internacaoFilter;
@@ -1031,7 +1034,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     const internados = filteredByContext
-      .filter(p => !isManualStatusAlta(p) && isPatientActive(p, referenceDate))
+      .filter(p => p.isInternado && !isManualStatusAlta(p))
       .sort(compareByLeitoThenName);
 
     const hospitalOrder = [
@@ -1040,7 +1043,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     ];
 
     const altas = filteredByContext
-      .filter(p => isManualStatusAlta(p))
+      .filter(p => !p.isInternado || isManualStatusAlta(p))
       .filter(p => {
         return p.dataUltimaVisita >= altasStartDate && p.dataUltimaVisita <= referenceDate;
       })

@@ -327,12 +327,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function isPatientActive(patient, referenceDate) {
     if (patient.statusManual === STATUS.ALTA) return false;
-    if (diffEmDias(patient.dataUltimaVisita, referenceDate) > DAYS_ACTIVE_THRESHOLD) return false;
     return true;
   }
 
   function isManualStatusAlta(patient) {
     return String(patient.statusManual || '').trim().toLowerCase() === STATUS.ALTA.toLowerCase();
+  }
+
+  function getPatientEndDate(patient) {
+    return isManualStatusAlta(patient) && patient.dataAlta ? patient.dataAlta : patient.dataUltimaVisita;
   }
 
   async function recalcPatientDates(patientId) {
@@ -895,7 +898,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const endStr = filterEndDate ? filterEndDate.value : '';
 
     return patients.map(p => {
-      const isInternado = isPatientActive(p, today);
+      const isInternado = !isManualStatusAlta(p);
       return { ...p, isInternado };
     }).filter(p => {
       const matchHosp = hospFilter === 'Todos' || p.hospital === hospFilter;
@@ -951,9 +954,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         valA = a.isInternado ? 0 : 1;
         valB = b.isInternado ? 0 : 1;
       }
+      if (currentSort.column === 'dataUltimaVisita') {
+        valA = getPatientEndDate(a);
+        valB = getPatientEndDate(b);
+      }
       if (currentSort.column === 'diasEntre') {
-        valA = diasDeInternacao(a.dataPrimeiraAvaliacao, a.dataUltimaVisita);
-        valB = diasDeInternacao(b.dataPrimeiraAvaliacao, b.dataUltimaVisita);
+        valA = diasDeInternacao(a.dataPrimeiraAvaliacao, getPatientEndDate(a));
+        valB = diasDeInternacao(b.dataPrimeiraAvaliacao, getPatientEndDate(b));
       }
       if (valA == null) valA = '';
       if (valB == null) valB = '';
@@ -974,7 +981,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const labels = ['Nome', 'Leito', 'Telefone', 'Internação', 'Hospital', 'Status', '1ª Aval.', 'Última', 'Dias', 'Relatório', ''];
 
     filtered.forEach(p => {
-      const dias = diasDeInternacao(p.dataPrimeiraAvaliacao, p.dataUltimaVisita);
+      const dataFim = getPatientEndDate(p);
+      const dias = diasDeInternacao(p.dataPrimeiraAvaliacao, dataFim);
       const temRelatorio = relatoriosSet.has(p.id);
       const tr = document.createElement('tr');
       tr.innerHTML = `
@@ -990,7 +998,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           ${p.statusManual === STATUS.ALTA && p.dataAlta ? `<br><small style="color:var(--color-text-secondary,#737271);font-size:0.75rem;">${formatDateBR(p.dataAlta)}</small>` : ''}
         </td>
         <td>${formatDateBR(p.dataPrimeiraAvaliacao)}</td>
-        <td>${formatDateBR(p.dataUltimaVisita)}</td>
+        <td>${formatDateBR(dataFim)}</td>
         <td>${dias}</td>
         <td style="text-align:center; font-size:1.1rem; color:${temRelatorio ? '#2e7d32' : '#c62828'};">${temRelatorio ? '✓' : '✗'}</td>
         <td class="col-actions">
@@ -1107,7 +1115,7 @@ ${p.statusManual === STATUS.ALTA ? `<button class="btn-action" title="Editar Dat
 
     const filteredByContext = listaPatients.map(p => ({
       ...p,
-      isInternado: isPatientActive(p, today)
+      isInternado: !isManualStatusAlta(p)
     })).filter(p => {
       const matchHospital = hospitalFilter === 'Todos' || p.hospital === hospitalFilter;
       const patientInternacao = p.internacao || 'Particular';
@@ -1128,11 +1136,14 @@ ${p.statusManual === STATUS.ALTA ? `<button class="btn-action" title="Editar Dat
     const altas = filteredByContext
       .filter(p => !p.isInternado || isManualStatusAlta(p))
       .filter(p => {
-        return p.dataUltimaVisita >= altasStartDate && p.dataUltimaVisita <= referenceDate;
+        const dataFim = getPatientEndDate(p);
+        return dataFim >= altasStartDate && dataFim <= referenceDate;
       })
       .sort((a, b) => {
-        if (a.dataUltimaVisita !== b.dataUltimaVisita) {
-          return a.dataUltimaVisita.localeCompare(b.dataUltimaVisita);
+        const dataFimA = getPatientEndDate(a);
+        const dataFimB = getPatientEndDate(b);
+        if (dataFimA !== dataFimB) {
+          return dataFimA.localeCompare(dataFimB);
         }
         return a.pacienteNome.localeCompare(b.pacienteNome, 'pt-BR', { sensitivity: 'base' });
       });
@@ -1158,7 +1169,7 @@ ${p.statusManual === STATUS.ALTA ? `<button class="btn-action" title="Editar Dat
     if (altas.length > 0) {
       lines.push('Altas');
       altas.forEach(p => {
-        lines.push(`${p.pacienteNome} - primeira aval ${formatDateDayMonth(p.dataPrimeiraAvaliacao)} - ${formatDateDayMonth(p.dataUltimaVisita)}`);
+        lines.push(`${p.pacienteNome} - primeira aval ${formatDateDayMonth(p.dataPrimeiraAvaliacao)} - ${formatDateDayMonth(getPatientEndDate(p))}`);
       });
     }
 
@@ -1333,7 +1344,7 @@ São Paulo, ${dataExtenso}`;
           btnSaveEdit.disabled = true;
 
           try {
-            const { error } = await supabaseClient.from('patients').update({
+            const updateFields = {
               pacientenome: newNome,
               leito: newLeito || null,
               telefone: newTelefone || null,
@@ -1341,7 +1352,15 @@ São Paulo, ${dataExtenso}`;
               internacao: newInternacao,
               statusmanual: novoStatus,
               dataprimeiraavaliacao: editDataPrimeira.value || p.dataPrimeiraAvaliacao
-            }).eq('id', p.id);
+            };
+
+            if (novoStatus === STATUS.ALTA && p.statusManual !== STATUS.ALTA) {
+              updateFields.dataalta = p.dataAlta || p.dataUltimaVisita || today;
+            } else if (novoStatus === STATUS.INTERNADO) {
+              updateFields.dataalta = null;
+            }
+
+            const { error } = await supabaseClient.from('patients').update(updateFields).eq('id', p.id);
 
             if (error) {
               handleSupabaseError(error, 'salvar edição');
@@ -1534,8 +1553,9 @@ São Paulo, ${dataExtenso}`;
   function exportCSV() {
     let csvContent = "Nome,Leito,Telefone,Internação,Hospital,Status,Primeira Avaliacao,Ultima Visita,Dias de Internacao\n";
     getFilteredPatients().forEach(p => {
-      const dias = diasDeInternacao(p.dataPrimeiraAvaliacao, p.dataUltimaVisita);
-      const statusStr = p.isInternado ? STATUS.INTERNADO : STATUS.ALTA;
+      const dataFim = getPatientEndDate(p);
+      const dias = diasDeInternacao(p.dataPrimeiraAvaliacao, dataFim);
+      const statusStr = isManualStatusAlta(p) ? STATUS.ALTA : STATUS.INTERNADO;
       const internacaoStr = p.internacao || 'Particular';
 
       const row = [
@@ -1546,7 +1566,7 @@ São Paulo, ${dataExtenso}`;
         p.hospital,
         statusStr,
         formatDateBR(p.dataPrimeiraAvaliacao),
-        formatDateBR(p.dataUltimaVisita),
+        formatDateBR(dataFim),
         dias
       ].map(csvCell).join(',');
       csvContent += row + "\n";

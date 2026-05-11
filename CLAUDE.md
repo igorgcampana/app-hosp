@@ -25,6 +25,7 @@ OBRIGATÓRIO seguir estritamente:
 - `statusmanual` (text: 'Internado', 'Alta')
 - `dataprimeiraavaliacao` (date)
 - `dataultimavisita` (date)
+- `dataalta` (date, nullable — set when `statusmanual='Alta'`, null when Internado)
 
 ### Tabela `historico`
 - `id` (int8, primary key)

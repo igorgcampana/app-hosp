@@ -145,7 +145,8 @@ body.role-manager [data-action="edit-patient"],
 body.role-manager [data-action="delete-patient"],
 body.role-manager [data-action="add-visit"],
 body.role-manager [data-action="edit-visit"],
-body.role-manager [data-action="delete-visit"] {
+body.role-manager [data-action="delete-visit"],
+body.role-manager [data-action="edit-dataalta"] {
   display: none !important;
 }
 

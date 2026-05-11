@@ -285,6 +285,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     return Math.round(Math.abs(d2 - d1) / (1000 * 60 * 60 * 24));
   }
 
+  function findMissingVisitDays(patient, dataInicio, dataFim) {
+    if (!dataInicio || !dataFim) return [];
+    const visitDays = new Set((patient.historico || []).map(h => h.data));
+    const missing = [];
+    const d = parseDate(dataInicio);
+    const end = parseDate(dataFim);
+    while (d <= end) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const iso = `${y}-${m}-${day}`;
+      if (!visitDays.has(iso)) missing.push(iso);
+      d.setDate(d.getDate() + 1);
+    }
+    return missing;
+  }
+
   // Diferença inclusiva (para exibição de "dias de internação")
   function diasDeInternacao(dataInicio, dataFim) {
     if (!dataInicio || !dataFim) return 0;
@@ -367,6 +384,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       statusManual: dbPat.statusmanual,
       dataPrimeiraAvaliacao: dbPat.dataprimeiraavaliacao,
       dataUltimaVisita: dbPat.dataultimavisita,
+      dataAlta: dbPat.dataalta || null,
       historico: dbPat.historico || []
     };
   }
@@ -533,7 +551,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       internacao: internacao,
       statusmanual: ehAlta ? STATUS.ALTA : STATUS.INTERNADO,
       dataprimeiraavaliacao: dataVisita,
-      dataultimavisita: dataVisita
+      dataultimavisita: dataVisita,
+      dataalta: ehAlta ? dataVisita : null
     }).select().single();
 
     if (error) {
@@ -564,13 +583,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       novoStatus = STATUS.INTERNADO;
     }
 
-    const { error: errUpdate } = await supabaseClient.from('patients').update({
+    const updateFields = {
       leito: leito,
       telefone: telefone || null,
       hospital: hospital,
       internacao: internacao,
       statusmanual: novoStatus
-    }).eq('id', p.id);
+    };
+    if (ehAlta) {
+      updateFields.dataalta = dataVisita;
+    } else if (p.statusManual === STATUS.ALTA && novoStatus === STATUS.INTERNADO) {
+      updateFields.dataalta = null;
+    }
+    const { error: errUpdate } = await supabaseClient.from('patients').update(updateFields).eq('id', p.id);
 
     if (errUpdate) {
       handleSupabaseError(errUpdate, 'atualizar paciente');
@@ -636,6 +661,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         const medico = selectDoctor.value;
 
         if (ehAlta) {
+          if (!isNovo) {
+            const pCheck = patients.find(p => p.id === selectedId);
+            if (pCheck) {
+              const missing = findMissingVisitDays(pCheck, pCheck.dataPrimeiraAvaliacao, dataVisita)
+                .filter(dia => dia !== dataVisita);
+              if (missing.length > 0) {
+                const diasStr = missing.map(d => formatDateBR(d)).join(', ');
+                if (!(await showConfirm(`Os seguintes dias não têm visita registrada: ${diasStr}.\n\nConfirmar alta mesmo assim?`, 'Visitas sem registro'))) return;
+              }
+            }
+          }
           const nomeDisplay = isNovo ? nome : patients.find(p => p.id === selectedId)?.pacienteNome || 'paciente';
           if (!(await showConfirm(`Confirma a ALTA de ${nomeDisplay}?`, 'Alta Hospitalar'))) { return; }
         }
@@ -951,6 +987,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <span class="status-badge ${p.isInternado ? 'ativo' : 'inativo'}">
             ${p.isInternado ? STATUS.INTERNADO : STATUS.ALTA}
           </span>
+          ${p.statusManual === STATUS.ALTA && p.dataAlta ? `<br><small style="color:var(--color-text-secondary,#737271);font-size:0.75rem;">${formatDateBR(p.dataAlta)}</small>` : ''}
         </td>
         <td>${formatDateBR(p.dataPrimeiraAvaliacao)}</td>
         <td>${formatDateBR(p.dataUltimaVisita)}</td>
@@ -959,6 +996,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td class="col-actions">
 <button class="btn-action" title="Relatório de Internação" data-action="view-relatorio" data-patient-id="${escAttr(p.id)}">📋</button>
 <button class="btn-action" title="Editar Dados do Paciente" data-action="edit-patient" data-patient-id="${escAttr(p.id)}">✏️</button>
+${p.statusManual === STATUS.ALTA ? `<button class="btn-action" title="Editar Data da Alta" data-action="edit-dataalta" data-patient-id="${escAttr(p.id)}">📅</button>` : ''}
            <button class="btn-action" title="Excluir Paciente" data-action="delete-patient" data-patient-id="${escAttr(p.id)}">🗑️</button>
         </td>
       `;
@@ -999,6 +1037,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+
+  function openEditDataAltaModal(patientId) {
+    if (userRole === 'manager') return;
+    const p = patients.find(pat => pat.id === patientId);
+    if (!p || p.statusManual !== STATUS.ALTA) return;
+    const modal = document.getElementById('edit-dataalta-modal');
+    const input = document.getElementById('edit-dataalta-input');
+    const label = document.getElementById('edit-dataalta-patient-label');
+    label.textContent = p.pacienteNome;
+    input.value = p.dataAlta || p.dataUltimaVisita || '';
+    input.min = p.dataPrimeiraAvaliacao || '';
+    input.max = today;
+    modal.dataset.patientId = patientId;
+    modal.classList.add('active');
+  }
 
   async function offerRelatorioAposAlta(patientId) {
     if (await showConfirm('Deseja preencher o relatório de alta agora?', 'Relatório de Alta')) {
@@ -1138,7 +1191,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const nome = p.pacienteNome || '';
     const hospital = HOSPITAL_NAMES[p.hospital] || p.hospital || '';
     const dataInicio = formatDateBR(p.dataPrimeiraAvaliacao);
-    const dataFim = formatDateBR(p.dataUltimaVisita);
+    const dataFim = (p.statusManual === STATUS.ALTA && p.dataAlta) ? formatDateBR(p.dataAlta) : formatDateBR(p.dataUltimaVisita);
 
     const historico = p.historico || [];
     const totalVisitas = historico.reduce((sum, h) => sum + (parseInt(h.visitas, 10) || 0), 0);
@@ -1210,6 +1263,39 @@ São Paulo, ${dataExtenso}`;
   }
 
   function setupModalListeners() {
+    const editDataAltaModal = document.getElementById('edit-dataalta-modal');
+    const editDataAltaInput = document.getElementById('edit-dataalta-input');
+    document.getElementById('btn-cancel-dataalta').addEventListener('click', () => {
+      editDataAltaModal.classList.remove('active');
+    });
+    document.getElementById('btn-save-dataalta').addEventListener('click', async () => {
+      const patientId = editDataAltaModal.dataset.patientId;
+      const p = patients.find(pat => pat.id === patientId);
+      if (userRole === 'manager') return;
+      if (!p) return;
+      const novaData = editDataAltaInput.value;
+      if (!novaData) return;
+      if (p.dataPrimeiraAvaliacao && novaData < p.dataPrimeiraAvaliacao) {
+        showToast('Data da alta não pode ser anterior à primeira avaliação.');
+        return;
+      }
+      if (novaData > today) {
+        showToast('Data da alta não pode ser futura.');
+        return;
+      }
+      const missing = findMissingVisitDays(p, p.dataPrimeiraAvaliacao, novaData);
+      if (missing.length > 0) {
+        const diasStr = missing.map(d => formatDateBR(d)).join(', ');
+        if (!(await showConfirm(`Os seguintes dias não têm visita registrada: ${diasStr}.\n\nSalvar data da alta mesmo assim?`, 'Visitas sem registro'))) return;
+      }
+      const { error } = await supabaseClient.from('patients').update({ dataalta: novaData }).eq('id', patientId);
+      if (error) { handleSupabaseError(error, 'atualizar data da alta'); return; }
+      editDataAltaModal.classList.remove('active');
+      await fetchAllData();
+      renderPatientsTable();
+      showToast('Data da alta atualizada.');
+    });
+
     btnCancelEdit.addEventListener('click', () => {
       editModal.classList.remove('active');
       currentEditingPatientId = null;
@@ -1765,6 +1851,7 @@ São Paulo, ${dataExtenso}`;
 
       // Ações síncronas (abrir modal) — não precisam de guard
       if (action === 'edit-patient') { editPatientInfo(patientId); return; }
+      if (action === 'edit-dataalta') { openEditDataAltaModal(patientId); return; }
       if (action === 'edit-visit') { editVisit(patientId, histId); return; }
       if (action === 'view-relatorio') { openRelatorioModal(patientId); return; }
 

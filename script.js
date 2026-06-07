@@ -1205,7 +1205,9 @@ ${p.statusManual === STATUS.ALTA ? `<button class="btn-action" title="Editar Dat
     const dataFim = (p.statusManual === STATUS.ALTA && p.dataAlta) ? formatDateBR(p.dataAlta) : formatDateBR(p.dataUltimaVisita);
 
     const historico = p.historico || [];
-    const totalVisitas = historico.reduce((sum, h) => sum + (parseInt(h.visitas, 10) || 0), 0);
+    // Relatório/cobrança: conta no máximo 1 visita por dia (dias distintos com visita).
+    // Múltiplas visitas no mesmo dia são contabilizadas nas outras páginas (calendário/repasse), não aqui.
+    const totalVisitas = new Set(historico.map(h => h.data).filter(Boolean)).size;
     const medicos = [...new Set(historico.map(h => h.medico).filter(Boolean))]
       .sort()
       .map(m => DOCTOR_TITLES[m] || m)

@@ -1334,6 +1334,17 @@ São Paulo, ${dataExtenso}`;
             return;
           }
 
+          const virandoAlta = ehAlta && p.statusManual !== STATUS.ALTA;
+          const novaDataPrimeira = editDataPrimeira.value || p.dataPrimeiraAvaliacao;
+          const novaDataAlta = p.dataAlta || p.dataUltimaVisita || today;
+          if (virandoAlta) {
+            const missing = findMissingVisitDays(p, novaDataPrimeira, novaDataAlta);
+            if (missing.length > 0) {
+              const diasStr = missing.map(d => formatDateBR(d)).join(', ');
+              if (!(await showConfirm(`Os seguintes dias não têm visita registrada: ${diasStr}.\n\nConfirmar alta mesmo assim?`, 'Visitas sem registro'))) return;
+            }
+          }
+
           isProcessing = true;
           let novoStatus = p.statusManual;
           if (ehAlta) {
@@ -1353,11 +1364,11 @@ São Paulo, ${dataExtenso}`;
               hospital: newHospital,
               internacao: newInternacao,
               statusmanual: novoStatus,
-              dataprimeiraavaliacao: editDataPrimeira.value || p.dataPrimeiraAvaliacao
+              dataprimeiraavaliacao: novaDataPrimeira
             };
 
-            if (novoStatus === STATUS.ALTA && p.statusManual !== STATUS.ALTA) {
-              updateFields.dataalta = p.dataAlta || p.dataUltimaVisita || today;
+            if (virandoAlta) {
+              updateFields.dataalta = novaDataAlta;
             } else if (novoStatus === STATUS.INTERNADO) {
               updateFields.dataalta = null;
             }
@@ -1374,7 +1385,6 @@ São Paulo, ${dataExtenso}`;
             renderCalendar();
             showToast('Paciente atualizado!');
 
-            const virandoAlta = ehAlta && p.statusManual !== STATUS.ALTA;
             editModal.classList.remove('active');
             currentEditingPatientId = null;
             if (virandoAlta) await offerRelatorioAposAlta(p.id);

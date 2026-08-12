@@ -392,21 +392,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
   }
 
+  async function fetchPaged(buildQuery) {
+    const pageSize = 1000;
+    const rows = [];
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await buildQuery().range(from, from + pageSize - 1);
+      if (error) return { data: null, error };
+      rows.push(...(data || []));
+      if (!data || data.length < pageSize) return { data: rows, error: null };
+    }
+  }
+
   async function fetchAllData() {
-    const { data: patientsData, error: errPat } = await supabaseClient
-      .from('patients')
-      .select('*');
+    const { data: patientsData, error: errPat } = await fetchPaged(() =>
+      supabaseClient.from('patients').select('*')
+    );
 
-    const { data: histData, error: errHist } = await supabaseClient
-      .from('historico')
-      .select('id, patient_id, data, medico, visitas');
+    const { data: histData, error: errHist } = await fetchPaged(() =>
+      supabaseClient.from('historico').select('id, patient_id, data, medico, visitas')
+    );
 
-    const { data: relData } = await supabaseClient
-      .from('relatorios')
-      .select('patient_id');
+    const { data: relData, error: errRel } = await fetchPaged(() =>
+      supabaseClient.from('relatorios').select('patient_id')
+    );
 
-    if (errPat) { handleSupabaseError(errPat, 'carregar os dados'); return; }
-    if (errHist) { handleSupabaseError(errHist, 'carregar os dados'); return; }
+    if (errPat) { handleSupabaseError(errPat, 'carregar os dados'); return false; }
+    if (errHist) { handleSupabaseError(errHist, 'carregar os dados'); return false; }
+    if (errRel) { handleSupabaseError(errRel, 'carregar os dados'); return false; }
 
     relatoriosSet = new Set((relData || []).map(r => r.patient_id));
 
@@ -420,11 +432,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     }
 
-    patients = patientsData.map(p => ({
+    patients = (patientsData || []).map(p => ({
       ...mapPatient(p),
       historico: historicoMap.get(p.id) || []
     }));
     window.patients = patients;
+    return true;
   }
 
   async function init() {
@@ -563,16 +576,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       return { success: false };
     }
 
-    if (newPat) {
-      const { error: errHistInsert } = await supabaseClient.from('historico').insert({
-        patient_id: newPat.id,
-        data: dataVisita,
-        medico: medico,
-        visitas: numeroVisitas
-      });
-      if (errHistInsert) handleSupabaseError(errHistInsert, 'salvar histórico');
+    if (!newPat) return { success: false };
+
+    const { error: errHistInsert } = await supabaseClient.from('historico').insert({
+      patient_id: newPat.id,
+      data: dataVisita,
+      medico: medico,
+      visitas: numeroVisitas
+    });
+    if (errHistInsert) {
+      handleSupabaseError(errHistInsert, 'salvar histórico');
+      return { success: false, patientId: newPat.id };
     }
-    return { success: true, patientId: newPat?.id };
+    return { success: true, patientId: newPat.id };
   }
 
   async function addVisitToExistingPatient({ selectedId, leito, telefone, hospital, internacao, ehAlta, dataVisita, numeroVisitas, medico }) {
@@ -608,7 +624,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const hist = p.historico.find(h => h.data === dataVisita && h.medico === medico);
     if (hist) {
       const { error: errHistUpdate } = await supabaseClient.from('historico').update({ visitas: parseInt(hist.visitas, 10) + numeroVisitas }).eq('id', hist.id);
-      if (errHistUpdate) handleSupabaseError(errHistUpdate, 'salvar histórico');
+      if (errHistUpdate) {
+        handleSupabaseError(errHistUpdate, 'salvar histórico');
+        return { success: false, patientId: p.id };
+      }
     } else {
       const { error: errHistInsert } = await supabaseClient.from('historico').insert({
         patient_id: p.id,
@@ -616,7 +635,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         medico: medico,
         visitas: numeroVisitas
       });
-      if (errHistInsert) handleSupabaseError(errHistInsert, 'salvar histórico');
+      if (errHistInsert) {
+        handleSupabaseError(errHistInsert, 'salvar histórico');
+        return { success: false, patientId: p.id };
+      }
     }
 
     await recalcPatientDates(p.id);
@@ -689,8 +711,16 @@ document.addEventListener('DOMContentLoaded', async () => {
           result = await addVisitToExistingPatient({ selectedId, leito, telefone, hospital, internacao, ehAlta, dataVisita, numeroVisitas, medico });
         }
 
+        if (result?.patientId && !selectedPatientId.value) {
+          selectedPatientId.value = result.patientId;
+        }
+
         if (result && result.success) {
-          await fetchAllData();
+          const reloaded = await fetchAllData();
+          if (!reloaded) {
+            showToast('Visita gravada, mas a lista não recarregou. Atualize a página.');
+            return;
+          }
 
           pacienteInput.value = '';
           selectedPatientId.value = '';
@@ -1905,6 +1935,7 @@ São Paulo, ${dataExtenso}`;
 
   // EXECUTE INITIALIZATION
   init().then(() => {
+    if (userRole !== 'admin') return;
     if (typeof initRepasse === 'function') initRepasse();
     if (typeof initConciliacao === 'function') initConciliacao();
   });

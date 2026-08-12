@@ -121,7 +121,7 @@ async function loadRepasseConfig() {
     .from('repasse_config')
     .select('*')
     .eq('id', 1)
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('Erro ao carregar repasse_config:', error);
@@ -155,9 +155,9 @@ async function loadOrCreateFatura(mes, ano) {
     .select('*')
     .eq('mes', mes)
     .eq('ano', ano)
-    .single();
+    .maybeSingle();
 
-  if (error && error.code !== 'PGRST116') {
+  if (error) {
     console.error('Erro ao carregar fatura:', error);
     return null;
   }

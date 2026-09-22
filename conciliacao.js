@@ -124,18 +124,30 @@ async function concFetchPatients(periodoInicio, periodoFim) {
 
   let response = await supabaseClient
     .from('patients')
-    .select('pacientenome, dataprimeiraavaliacao, dataultimavisita')
+    .select('id, patientenome, dataprimeiraavaliacao, dataultimavisita, dataalta, statusmanual')
     .eq('hospital', 'HSL')
     .lte('dataprimeiraavaliacao', fimIso)
-    .gte('dataultimavisita', inicioIso);
+    .or('statusmanual.eq.Internado,dataultimavisita.gte.' + inicioIso + ',dataalta.gte.' + inicioIso);
 
   if (response.error) throw new Error('Supabase: ' + response.error.message);
 
+  let excecoes = {};
+  let semResp = await supabaseClient.from('dias_sem_visita').select('patient_id, data');
+  if (!semResp.error && semResp.data) {
+    semResp.data.forEach(function(row) {
+      if (!excecoes[row.patient_id]) excecoes[row.patient_id] = [];
+      excecoes[row.patient_id].push(row.data);
+    });
+  }
+
   return response.data.map(function(row) {
+    let fim = row.dataultimavisita;
+    if (row.statusmanual === 'Alta' && row.dataalta) fim = row.dataalta;
     return {
       nome: row.pacientenome,
       data_inicio: row.dataprimeiraavaliacao,
-      data_fim: row.dataultimavisita,
+      data_fim: fim,
+      sem_visita: excecoes[row.id] || [],
     };
   });
 }
@@ -152,7 +164,12 @@ function concCalcExpectedDates(pacSupa, periodoInicio, periodoFim) {
   let fim = pFim < sFim ? pFim : sFim;
 
   if (inicio > fim) return new Set();
-  return concDateRange(concFormatDate(inicio), concFormatDate(fim));
+  let datas = concDateRange(concFormatDate(inicio), concFormatDate(fim));
+  (pacSupa.sem_visita || []).forEach(function(iso) {
+    let parts = iso.split('-');
+    if (parts.length === 3) datas.delete(parts[2] + '/' + parts[1] + '/' + parts[0]);
+  });
+  return datas;
 }
 
 function concClassify(datasNaoPagas, datasExtras) {

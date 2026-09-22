@@ -286,20 +286,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function findMissingVisitDays(patient, dataInicio, dataFim) {
-    if (!dataInicio || !dataFim) return [];
-    const visitDays = new Set((patient.historico || []).map(h => h.data));
-    const missing = [];
-    const d = parseDate(dataInicio);
-    const end = parseDate(dataFim);
-    while (d <= end) {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      const iso = `${y}-${m}-${day}`;
-      if (!visitDays.has(iso)) missing.push(iso);
-      d.setDate(d.getDate() + 1);
-    }
-    return missing;
+    if (!window.Lacunas) return [];
+    return window.Lacunas.missingBetween(patient, dataInicio, dataFim);
+  }
+
+  function fimLacunas(patient, fimOverride) {
+    if (fimOverride) return fimOverride;
+    if (!window.Lacunas) return today;
+    return window.Lacunas.fimInternacao(patient, today);
   }
 
   // Diferença inclusiva (para exibição de "dias de internação")
@@ -416,9 +410,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       supabaseClient.from('relatorios').select('patient_id')
     );
 
+    const { data: semData, error: errSem } = await fetchPaged(() =>
+      supabaseClient.from('dias_sem_visita').select('id, patient_id, data')
+    );
+
     if (errPat) { handleSupabaseError(errPat, 'carregar os dados'); return false; }
     if (errHist) { handleSupabaseError(errHist, 'carregar os dados'); return false; }
     if (errRel) { handleSupabaseError(errRel, 'carregar os dados'); return false; }
+    if (errSem) {
+      console.error('dias_sem_visita:', errSem);
+      if (!window.__lacunasTabelaAvisada) {
+        window.__lacunasTabelaAvisada = true;
+        showToast('A marca de dia sem visita ainda não está no banco. A trava da alta já funciona.');
+      }
+    }
 
     relatoriosSet = new Set((relData || []).map(r => r.patient_id));
 
@@ -432,9 +437,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     }
 
+    const semMap = new Map();
+    (errSem ? [] : (semData || [])).forEach(row => {
+      if (!semMap.has(row.patient_id)) semMap.set(row.patient_id, []);
+      semMap.get(row.patient_id).push(row.data);
+    });
+
     patients = (patientsData || []).map(p => ({
       ...mapPatient(p),
-      historico: historicoMap.get(p.id) || []
+      historico: historicoMap.get(p.id) || [],
+      diasSemVisita: semMap.get(p.id) || []
     }));
     window.patients = patients;
     return true;
@@ -462,11 +474,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     populateSelect(editHospital, HOSPITALS);
     populateSelect(editInternacao, INTERNACAO_TYPES);
     populateSelect(editVisitMedico, DOCTORS);
+    const lacunasMedico = document.getElementById('lacunas-medico');
+    if (lacunasMedico) populateSelect(lacunasMedico, DOCTORS);
 
     const savedDoctor = localStorage.getItem('apphosp_doctor');
     if (savedDoctor && DOCTORS.includes(savedDoctor)) {
       selectDoctor.value = savedDoctor;
+      if (lacunasMedico) lacunasMedico.value = savedDoctor;
     }
+    setupLacunasModal();
     selectDoctor.addEventListener('change', () => {
       localStorage.setItem('apphosp_doctor', selectDoctor.value);
       renderPrevDayTable();
@@ -641,8 +657,174 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
 
+    await removerDiaSemVisita(p.id, dataVisita);
     await recalcPatientDates(p.id);
     return { success: true, patientId: p.id };
+  }
+
+  async function removerDiaSemVisita(patientId, data) {
+    const { error } = await supabaseClient
+      .from('dias_sem_visita')
+      .delete()
+      .eq('patient_id', patientId)
+      .eq('data', data);
+    if (error && error.code !== '42P01' && !(error.message || '').includes('dias_sem_visita')) {
+      console.error(error);
+    }
+  }
+
+  function impedirAltaComLacunas(patient, fimIso, diaIgnorado) {
+    const missing = findMissingVisitDays(patient, patient.dataPrimeiraAvaliacao, fimIso)
+      .filter(dia => dia !== diaIgnorado);
+    if (missing.length === 0) return false;
+    showToast('A alta não fecha enquanto houver dia sem lançamento.');
+    openLacunasModal(patient.id, fimIso, diaIgnorado, patient.dataPrimeiraAvaliacao);
+    return true;
+  }
+
+  let lacunasPatientId = null;
+  let lacunasFim = null;
+  let lacunasIgnorar = null;
+  let lacunasInicio = null;
+
+  function openLacunasModal(patientId, fimOverride, diaIgnorado, inicioOverride) {
+    lacunasPatientId = patientId;
+    lacunasFim = fimOverride || null;
+    lacunasIgnorar = diaIgnorado || null;
+    lacunasInicio = inicioOverride || null;
+    renderLacunasModal();
+    const modal = document.getElementById('lacunas-modal');
+    if (modal) modal.classList.add('active');
+  }
+  window.abrirLacunas = function (patientId, fimOverride) {
+    openLacunasModal(patientId, fimOverride || null, null, null);
+  };
+
+  function renderLacunasModal() {
+    const p = patients.find(pat => pat.id === lacunasPatientId);
+    const label = document.getElementById('lacunas-patient-label');
+    const lista = document.getElementById('lacunas-lista');
+    const excecoes = document.getElementById('lacunas-excecoes');
+    const medicoGroup = document.getElementById('lacunas-medico-group');
+    if (!p || !lista || !label) return;
+
+    const fim = fimLacunas(p, lacunasFim);
+    const inicio = lacunasInicio || p.dataPrimeiraAvaliacao;
+    const missing = findMissingVisitDays(p, inicio, fim)
+      .filter(dia => dia !== lacunasIgnorar);
+    const marcados = (p.diasSemVisita || [])
+      .filter(dia => inicio && dia >= inicio && dia <= fim)
+      .sort();
+    const somenteLeitura = userRole === 'manager';
+
+    label.textContent = `${p.pacienteNome} — até ${formatDateBR(fim)}`;
+    if (medicoGroup) medicoGroup.style.display = somenteLeitura ? 'none' : '';
+
+    if (missing.length === 0) {
+      lista.innerHTML = '<p class="lacunas-lead">Nenhum dia pendente neste período.</p>';
+    } else {
+      lista.innerHTML = missing.map(dia => `
+        <div class="lacunas-row">
+          <span class="lacunas-data">${formatDateBR(dia)}</span>
+          ${somenteLeitura ? '' : `
+          <div class="lacunas-acoes">
+            <button type="button" class="btn-lacuna btn-lacuna-primary" data-lacuna="lancar" data-dia="${dia}">Lançar visita</button>
+            <button type="button" class="btn-lacuna" data-lacuna="sem" data-dia="${dia}">Sem visita</button>
+          </div>`}
+        </div>
+      `).join('');
+    }
+
+    if (!excecoes) return;
+    if (marcados.length === 0) {
+      excecoes.innerHTML = '';
+      return;
+    }
+    excecoes.innerHTML = '<p class="lacunas-lead" style="margin-top:0.75rem;">Marcados como sem visita</p>' + marcados.map(dia => `
+      <div class="lacunas-row">
+        <span class="lacunas-data">${formatDateBR(dia)}</span>
+        ${somenteLeitura ? '' : `<button type="button" class="btn-lacuna" data-lacuna="desfazer" data-dia="${dia}">Desfazer</button>`}
+      </div>
+    `).join('');
+  }
+
+  async function lancarVisitaNoDia(patientId, data, medico) {
+    const p = patients.find(pat => pat.id === patientId);
+    if (!p || !medico) {
+      showToast('Escolha o médico da visita.');
+      return;
+    }
+    const hist = p.historico.find(h => h.data === data && h.medico === medico);
+    if (hist) {
+      const { error } = await supabaseClient.from('historico').update({ visitas: parseInt(hist.visitas, 10) + 1 }).eq('id', hist.id);
+      if (error) { handleSupabaseError(error, 'lançar visita'); return; }
+    } else {
+      const { error } = await supabaseClient.from('historico').insert({
+        patient_id: patientId,
+        data: data,
+        medico: medico,
+        visitas: 1
+      });
+      if (error) { handleSupabaseError(error, 'lançar visita'); return; }
+    }
+    await removerDiaSemVisita(patientId, data);
+    await recalcPatientDates(patientId);
+    await atualizarTelasDepoisDaLacuna();
+    showToast('Visita lançada.');
+  }
+
+  async function marcarSemVisita(patientId, data) {
+    const { error } = await supabaseClient.from('dias_sem_visita').insert({ patient_id: patientId, data: data });
+    if (error) { handleSupabaseError(error, 'marcar dia sem visita'); return; }
+    await atualizarTelasDepoisDaLacuna();
+    showToast('Dia marcado como sem visita. Ele sai da cobrança.');
+  }
+
+  async function desfazerSemVisita(patientId, data) {
+    await removerDiaSemVisita(patientId, data);
+    await atualizarTelasDepoisDaLacuna();
+  }
+
+  async function atualizarTelasDepoisDaLacuna() {
+    await fetchAllData();
+    renderPrevDayTable();
+    renderPatientsTable();
+    renderCalendar();
+    if (typeof renderRepasseEntrada === 'function') renderRepasseEntrada();
+    renderLacunasModal();
+  }
+
+  function setupLacunasModal() {
+    const modal = document.getElementById('lacunas-modal');
+    const btnFechar = document.getElementById('btn-fechar-lacunas');
+    if (!modal) return;
+    if (btnFechar) {
+      btnFechar.addEventListener('click', () => modal.classList.remove('active'));
+    }
+    modal.addEventListener('click', async (e) => {
+      if (e.target === modal) {
+        modal.classList.remove('active');
+        return;
+      }
+      const btn = e.target.closest('[data-lacuna]');
+      if (!btn || !lacunasPatientId || isProcessing) return;
+      if (userRole === 'manager') return;
+      const dia = btn.dataset.dia;
+      const tipo = btn.dataset.lacuna;
+      isProcessing = true;
+      try {
+        if (tipo === 'lancar') {
+          const medico = document.getElementById('lacunas-medico').value;
+          await lancarVisitaNoDia(lacunasPatientId, dia, medico);
+        } else if (tipo === 'sem') {
+          await marcarSemVisita(lacunasPatientId, dia);
+        } else if (tipo === 'desfazer') {
+          await desfazerSemVisita(lacunasPatientId, dia);
+        }
+      } finally {
+        isProcessing = false;
+      }
+    });
   }
 
   function setupForm() {
@@ -688,14 +870,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (ehAlta) {
           if (!isNovo) {
             const pCheck = patients.find(p => p.id === selectedId);
-            if (pCheck) {
-              const missing = findMissingVisitDays(pCheck, pCheck.dataPrimeiraAvaliacao, dataVisita)
-                .filter(dia => dia !== dataVisita);
-              if (missing.length > 0) {
-                const diasStr = missing.map(d => formatDateBR(d)).join(', ');
-                if (!(await showConfirm(`Os seguintes dias não têm visita registrada: ${diasStr}.\n\nConfirmar alta mesmo assim?`, 'Visitas sem registro'))) return;
-              }
-            }
+            if (pCheck && impedirAltaComLacunas(pCheck, dataVisita, dataVisita)) return;
           }
           const nomeDisplay = isNovo ? nome : patients.find(p => p.id === selectedId)?.pacienteNome || 'paciente';
           if (!(await showConfirm(`Confirma a ALTA de ${nomeDisplay}?`, 'Alta Hospitalar'))) { return; }
@@ -839,12 +1014,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       shortcutContext.textContent = `Visita será registrada para ${selectDoctor.value} em ${formatDateBR(inputDataVisita.value)}`;
     }
 
-    // Mostrar pacientes com última visita entre 1 e limite dias atrás
+    const fimAtalho = selectedDateStr > today ? today : selectedDateStr;
     const prevDayPatients = patients.filter(p => {
       if (!isPatientActive(p, selectedDateStr)) return false;
-      if (p.dataUltimaVisita >= selectedDateStr) return false;
-      const diff = diffEmDias(p.dataUltimaVisita, selectedDateStr);
-      return diff >= 1 && diff <= DAYS_ACTIVE_THRESHOLD;
+      return findMissingVisitDays(p, p.dataPrimeiraAvaliacao, fimAtalho).length > 0;
     });
 
     if (prevDayPatients.length === 0) {
@@ -857,12 +1030,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     prevDayTableBody.parentElement.style.display = 'table';
 
     prevDayPatients.forEach(p => {
+      const missing = findMissingVisitDays(p, p.dataPrimeiraAvaliacao, fimAtalho);
+      const faltaNoDia = missing.includes(selectedDateStr);
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${esc(p.pacienteNome)}</td>
+        <td>${esc(p.pacienteNome)}<br><button type="button" class="btn-lacuna btn-lacuna-ficha" data-action="ver-lacunas" data-patient-id="${escAttr(p.id)}" data-fim="${escAttr(fimAtalho)}">${missing.length} sem lançamento</button></td>
         <td>${esc(p.hospital)}</td>
         <td class="col-actions">
-           <button class="btn-action" title="Registrar 1 visita para a data selecionada" data-action="add-visit" data-patient-id="${escAttr(p.id)}">➕</button>
+           ${faltaNoDia ? `<button class="btn-action" title="Registrar 1 visita para a data selecionada" data-action="add-visit" data-patient-id="${escAttr(p.id)}">➕</button>` : ''}
         </td>
       `;
       prevDayTableBody.appendChild(tr);
@@ -891,6 +1066,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           if (error) { handleSupabaseError(error, 'adicionar visita'); return; }
         }
 
+        await removerDiaSemVisita(p.id, dataVisita);
         await recalcPatientDates(p.id);
 
         await fetchAllData();
@@ -1013,6 +1189,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     filtered.forEach(p => {
       const dataFim = getPatientEndDate(p);
       const dias = diasDeInternacao(p.dataPrimeiraAvaliacao, dataFim);
+      const pendentes = findMissingVisitDays(p, p.dataPrimeiraAvaliacao, fimLacunas(p));
       const temRelatorio = relatoriosSet.has(p.id);
       const tr = document.createElement('tr');
       tr.innerHTML = `
@@ -1029,7 +1206,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </td>
         <td>${formatDateBR(p.dataPrimeiraAvaliacao)}</td>
         <td>${formatDateBR(dataFim)}</td>
-        <td>${dias}</td>
+        <td>${dias}${pendentes.length ? `<br><button type="button" class="btn-lacuna btn-lacuna-ficha" data-action="ver-lacunas" data-patient-id="${escAttr(p.id)}">${pendentes.length} sem lançamento</button>` : ''}</td>
         <td style="text-align:center; font-size:1.1rem; color:${temRelatorio ? '#2e7d32' : '#c62828'};">${temRelatorio ? '✓' : '✗'}</td>
         <td class="col-actions">
 <button class="btn-action" title="Relatório de Internação" data-action="view-relatorio" data-patient-id="${escAttr(p.id)}">📋</button>
@@ -1326,11 +1503,7 @@ São Paulo, ${dataExtenso}`;
         showToast('Data da alta não pode ser futura.');
         return;
       }
-      const missing = findMissingVisitDays(p, p.dataPrimeiraAvaliacao, novaData);
-      if (missing.length > 0) {
-        const diasStr = missing.map(d => formatDateBR(d)).join(', ');
-        if (!(await showConfirm(`Os seguintes dias não têm visita registrada: ${diasStr}.\n\nSalvar data da alta mesmo assim?`, 'Visitas sem registro'))) return;
-      }
+      if (impedirAltaComLacunas(p, novaData)) return;
       const { error } = await supabaseClient.from('patients').update({ dataalta: novaData }).eq('id', patientId);
       if (error) { handleSupabaseError(error, 'atualizar data da alta'); return; }
       editDataAltaModal.classList.remove('active');
@@ -1366,14 +1539,8 @@ São Paulo, ${dataExtenso}`;
 
           const virandoAlta = ehAlta && p.statusManual !== STATUS.ALTA;
           const novaDataPrimeira = editDataPrimeira.value || p.dataPrimeiraAvaliacao;
-          const novaDataAlta = p.dataAlta || p.dataUltimaVisita || today;
-          if (virandoAlta) {
-            const missing = findMissingVisitDays(p, novaDataPrimeira, novaDataAlta);
-            if (missing.length > 0) {
-              const diasStr = missing.map(d => formatDateBR(d)).join(', ');
-              if (!(await showConfirm(`Os seguintes dias não têm visita registrada: ${diasStr}.\n\nConfirmar alta mesmo assim?`, 'Visitas sem registro'))) return;
-            }
-          }
+          const novaDataAlta = today;
+          if (virandoAlta && impedirAltaComLacunas({ ...p, dataPrimeiraAvaliacao: novaDataPrimeira }, novaDataAlta)) return;
 
           isProcessing = true;
           let novoStatus = p.statusManual;
@@ -1916,6 +2083,7 @@ São Paulo, ${dataExtenso}`;
       if (action === 'edit-dataalta') { openEditDataAltaModal(patientId); return; }
       if (action === 'edit-visit') { editVisit(patientId, histId); return; }
       if (action === 'view-relatorio') { openRelatorioModal(patientId); return; }
+      if (action === 'ver-lacunas') { openLacunasModal(patientId, btn.dataset.fim || null, null); return; }
 
       // Ações assíncronas — proteger contra duplo clique
       if (isProcessing) return;

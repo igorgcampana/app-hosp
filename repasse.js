@@ -45,6 +45,59 @@ function calcQtdVisitas(inicio, fim) {
   return Math.max(1, diff);
 }
 
+function todayIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function formatIsoBR(iso) {
+  if (!iso) return '';
+  const parts = iso.split('-');
+  if (parts.length !== 3) return iso;
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+}
+
+function qtdDiasCobranca(pac, mes, ano) {
+  const selecionado = mes && ano ? { mes, ano } : getSelectedMesAno();
+  const patient = pac.patient_id && window.patients
+    ? window.patients.find(pt => pt.id === pac.patient_id)
+    : null;
+  if (patient && window.Lacunas && patient.dataPrimeiraAvaliacao) {
+    return window.Lacunas.resumirNoMes(patient, selecionado.ano, selecionado.mes, todayIso()).cobraveis.length;
+  }
+  return calcQtdVisitas(pac.periodo_inicio, pac.periodo_fim);
+}
+
+function pendenciasDoMes(mes, ano, pacientes) {
+  if (!window.Lacunas) return [];
+  const hoje = todayIso();
+  const itens = [];
+  (pacientes || []).forEach(pac => {
+    if (pac.incluido === false || !pac.patient_id) return;
+    const patient = (window.patients || []).find(pt => pt.id === pac.patient_id);
+    if (!patient) return;
+    const resumo = window.Lacunas.resumirNoMes(patient, ano, mes, hoje);
+    if (resumo.pendentes.length) {
+      itens.push({
+        patientId: patient.id,
+        nome: getNomeDisplay(pac),
+        datas: resumo.pendentes
+      });
+    }
+  });
+  return itens;
+}
+
+function travarFechamento(mes, ano, pacientes) {
+  const itens = pendenciasDoMes(mes, ano, pacientes);
+  if (!itens.length) return false;
+  const amostra = itens.slice(0, 3).map(i => i.nome).join(', ');
+  const extra = itens.length > 3 ? ` e mais ${itens.length - 3}` : '';
+  showToast(`Fechamento travado: ${itens.length} paciente(s) com dia sem lançamento (${amostra}${extra}).`);
+  if (typeof window.abrirLacunas === 'function') window.abrirLacunas(itens[0].patientId);
+  return true;
+}
+
 function getNomeDisplay(pac) {
   if (pac.nome_override) return pac.nome_override;
   if (pac._nome_display) return pac._nome_display;
@@ -270,7 +323,7 @@ async function deletePaciente(id) {
 // === RESUMO DO HEADER ===
 function calcValorEsperado(p) {
   const valorVisita = Number(p.valor_visita) || 0;
-  const qtd = calcQtdVisitas(p.periodo_inicio, p.periodo_fim);
+  const qtd = qtdDiasCobranca(p);
   const desconto = Number(p.desconto_paciente) || 0;
   return Math.max(0, valorVisita * qtd - desconto);
 }
@@ -441,6 +494,10 @@ async function baixarPDFHistorico(mes, ano, btn) {
     const ambResumo = calcAmbulatorioResumo(ambData || []);
 
     // Resolver nomes dos pacientes
+    if (travarFechamento(mes, ano, pacientes || [])) {
+      return;
+    }
+
     const pacientesComNome = (pacientes || []).map(p => ({
       ...p,
       _nome_display: p.nome_override || (window.patients || []).find(pt => pt.id === p.patient_id)?.pacienteNome || '(paciente)'
@@ -557,9 +614,32 @@ function calcAmbulatorioResumo(consultas) {
 }
 
 // === T10 — RENDER TABELA DE ENTRADA ===
+function renderRepasseLacunas() {
+  const box = document.getElementById('repasse-lacunas');
+  if (!box) return;
+  const { mes, ano } = getSelectedMesAno();
+  const itens = pendenciasDoMes(mes, ano, repassePacientes.filter(p => p.incluido));
+  if (!itens.length) {
+    box.style.display = 'none';
+    box.innerHTML = '';
+    return;
+  }
+  box.style.display = '';
+  box.innerHTML = `
+    <p>O fechamento deste mês está travado. Cada dia abaixo precisa de visita lançada ou da marca de sem visita.</p>
+    ${itens.map(item => `
+      <div class="repasse-lacunas-item">
+        <span><strong>${esc(item.nome)}</strong> — ${item.datas.length} dia(s): ${esc(item.datas.slice(0, 8).map(formatIsoBR).join(', '))}${item.datas.length > 8 ? '…' : ''}</span>
+        <button type="button" class="btn-lacuna btn-lacuna-primary" data-action="ver-lacunas" data-patient-id="${item.patientId}">Resolver</button>
+      </div>
+    `).join('')}
+  `;
+}
+
 function renderRepasseEntrada() {
   const tbody = document.querySelector('#repasse-pacientes-table tbody');
   const emptyMsg = document.getElementById('empty-repasse-pacientes');
+  renderRepasseLacunas();
   if (!tbody) return;
 
   if (repassePacientes.length === 0) {
@@ -579,8 +659,14 @@ function renderRepasseEntrada() {
     const isExcluido = !pac.incluido;
     const expanded = _expandedRows.has(idx);
 
-    // Cálculos de consistência
-    const qtdVisitas = calcQtdVisitas(pac.periodo_inicio, pac.periodo_fim);
+    // Cálculos de consistência: dias corridos da internação dentro do mês, menos "sem visita"
+    const qtdVisitas = qtdDiasCobranca(pac);
+    const patientMes = pac.patient_id && window.patients
+      ? window.patients.find(pt => pt.id === pac.patient_id)
+      : null;
+    const pendentesMes = patientMes && window.Lacunas
+      ? window.Lacunas.resumirNoMes(patientMes, getSelectedMesAno().ano, getSelectedMesAno().mes, todayIso()).pendentes.length
+      : 0;
     const valorVisita = Number(pac.valor_visita) || 0;
     const descontoPac = Number(pac.desconto_paciente) || 0;
     const valorEsperado = valorVisita * qtdVisitas;
@@ -606,7 +692,7 @@ function renderRepasseEntrada() {
           <select class="rep-status" data-idx="${idx}">${statusSelect}</select>
         </td>
         <td data-label="Valor Esperado" class="financeiro-only" style="text-align:right; white-space:nowrap;">
-          ${temValorVisita ? `<span style="font-size:0.85rem;">${formatBRL(valorEsperado)}</span><br><small style="color:var(--color-text-secondary);">${qtdVisitas}× ${formatBRL(valorVisita)}</small>` : '<span style="color:var(--color-text-secondary);">—</span>'}
+          ${temValorVisita ? `<span style="font-size:0.85rem;">${formatBRL(valorEsperado)}</span><br><small style="color:var(--color-text-secondary);">${qtdVisitas}× ${formatBRL(valorVisita)}</small>${pendentesMes ? `<br><small>${pendentesMes} sem lançamento</small>` : ''}` : '<span style="color:var(--color-text-secondary);">—</span>'}
         </td>
         <td data-label="Valor Recebido" class="financeiro-only">
           <div style="display:flex; flex-direction:column; gap:4px;">
@@ -639,9 +725,9 @@ function renderRepasseEntrada() {
                 placeholder="R$ / visita">
             </div>
             <div class="rep-detail-field">
-              <label>Qtd. visitas</label>
+              <label>Dias no mês</label>
               <input type="text" readonly value="${qtdVisitas > 0 ? qtdVisitas : '—'}"
-                style="background:#f0f4f4; cursor:default; width:80px;" title="Calculado automaticamente pelo período de internação">
+                style="background:#f0f4f4; cursor:default; width:80px;" title="Dias corridos da internação neste mês, sem os dias marcados como sem visita">
             </div>
             <div class="rep-detail-field">
               <label>Desconto</label>
@@ -1023,6 +1109,7 @@ async function gerarRelatorio() {
     showToast('Nenhum paciente incluído na lista');
     return;
   }
+  if (travarFechamento(mes, ano, incluidos)) return;
 
   // Salvar dados antes de gerar
   await saveRepasseData();
@@ -1197,19 +1284,21 @@ async function gerarPDF(pages, nomeArquivo, btnRef) {
 }
 
 async function downloadPDF() {
+  const { mes, ano } = getSelectedMesAno();
+  if (travarFechamento(mes, ano, repassePacientes.filter(p => p.incluido))) return;
   const btn = document.getElementById('btn-imprimir-repasse');
   const container = document.querySelector('#screen-repasse .repasse-relatorio');
   const pages = [...container.querySelectorAll('.repasse-pag1, .repasse-pag2')];
-  const { mes, ano } = getSelectedMesAno();
   const meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
   await gerarPDF(pages, `repasse-completo-${meses[mes - 1]}-${ano}.pdf`, btn);
 }
 
 async function downloadPDFMedico(medico, btn) {
+  const { mes, ano } = getSelectedMesAno();
+  if (travarFechamento(mes, ano, repassePacientes.filter(p => p.incluido))) return;
   const container = document.querySelector('#screen-repasse .repasse-relatorio');
   const pagMedico = container.querySelector(`.repasse-pag2[data-medico="${medico}"]`);
   if (!pagMedico) return;
-  const { mes, ano } = getSelectedMesAno();
   const meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
   const nomeArquivo = `repasse-${medico.toLowerCase().replace(/\s+/g, '-')}-${meses[mes - 1]}-${ano}.pdf`;
   await gerarPDF([pagMedico], nomeArquivo, btn);
@@ -1362,7 +1451,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Auto-PARCIAL: se valor recebido < valor esperado (valor_visita × qtd_visitas)
         const pac = repassePacientes[idx];
         const valorVisita = Number(pac.valor_visita) || 0;
-        const qtdVisitas = calcQtdVisitas(pac.periodo_inicio, pac.periodo_fim);
+        const qtdVisitas = qtdDiasCobranca(pac);
         const valorEsperado = valorVisita * qtdVisitas;
         if (valorVisita > 0 && val > 0 && val < valorEsperado) {
           repassePacientes[idx].status_pagamento = 'PARCIAL';

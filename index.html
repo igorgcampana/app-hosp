@@ -204,7 +204,7 @@
       </div>
 
       <div class="card list-card">
-        <h3>Pacientes Ativos — Atalho Rápido</h3>
+        <h3>Internados com dia sem lançamento</h3>
         <p id="shortcut-context"
           style="font-size: 0.85rem; color: var(--color-text-secondary); margin-bottom: 1rem; font-family: var(--font-body);">
         </p>
@@ -221,8 +221,7 @@
               <!-- Data injected via JS -->
             </tbody>
           </table>
-          <p id="empty-prev-day" class="empty-state">Nenhum paciente ativo encontrado. Use o formulário acima para
-            registrar um novo paciente.</p>
+          <p id="empty-prev-day" class="empty-state">Nenhum dia pendente até a data selecionada.</p>
         </div>
       </div>
     </section>
@@ -354,6 +353,7 @@
                 style="width:150px; font-weight:700; font-size:1rem; text-align:right; padding:0.5rem 0.75rem; background:#f0f4f4; cursor:default; border-color:var(--color-border);">
             </div>
           </div>
+          <div id="repasse-lacunas" class="repasse-lacunas" style="display:none;"></div>
           <div class="table-container">
             <table id="repasse-pacientes-table">
               <thead>
@@ -565,6 +565,24 @@
       </div>
     </div>
 
+    <!-- Dias sem visita lançada -->
+    <div id="lacunas-modal" class="modal-overlay">
+      <div class="card modal-card lacunas-card">
+        <h3>Dias sem lançamento</h3>
+        <p id="lacunas-patient-label" class="lacunas-lead"></p>
+        <p class="lacunas-lead">Cada dia corrido da internação, inclusive sábado e domingo, precisa de uma visita lançada ou da marca de que ninguém foi. A alta e o fechamento do mês ficam travados até isso.</p>
+        <div class="form-group" id="lacunas-medico-group">
+          <label for="lacunas-medico">Médico ao lançar a visita</label>
+          <select id="lacunas-medico"></select>
+        </div>
+        <div id="lacunas-lista" class="lacunas-lista"></div>
+        <div id="lacunas-excecoes" class="lacunas-excecoes"></div>
+        <div class="form-row" style="margin-top: 1rem;">
+          <button id="btn-fechar-lacunas" type="button" class="btn-secondary" style="flex:1;">Fechar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal de Confirmação Genérico -->
     <div id="confirm-modal" class="modal-overlay">
       <div class="card modal-card" style="text-align: center;">
@@ -650,6 +668,7 @@
   </main>
 
   <!-- Script that handles everything -->
+  <script src="lacunas.js"></script>
   <script src="script.js"></script>
   <script src="repasse.js"></script>
   <script src="conciliacao.js"></script>

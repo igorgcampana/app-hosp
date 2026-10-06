@@ -626,7 +626,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       statusmanual: novoStatus
     };
     if (ehAlta) {
-      updateFields.dataalta = dataVisita;
+      updateFields.dataalta = p.dataUltimaVisita && p.dataUltimaVisita > dataVisita ? p.dataUltimaVisita : dataVisita;
     } else if (p.statusManual === STATUS.ALTA && novoStatus === STATUS.INTERNADO) {
       updateFields.dataalta = null;
     }
@@ -870,7 +870,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (ehAlta) {
           if (!isNovo) {
             const pCheck = patients.find(p => p.id === selectedId);
-            if (pCheck && impedirAltaComLacunas(pCheck, dataVisita, dataVisita)) return;
+            const fimAlta = pCheck && pCheck.dataUltimaVisita > dataVisita ? pCheck.dataUltimaVisita : dataVisita;
+            if (pCheck && impedirAltaComLacunas(pCheck, fimAlta, dataVisita)) return;
           }
           const nomeDisplay = isNovo ? nome : patients.find(p => p.id === selectedId)?.pacienteNome || 'paciente';
           if (!(await showConfirm(`Confirma a ALTA de ${nomeDisplay}?`, 'Alta Hospitalar'))) { return; }
@@ -1014,10 +1015,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       shortcutContext.textContent = `Visita será registrada para ${selectDoctor.value} em ${formatDateBR(inputDataVisita.value)}`;
     }
 
-    const fimAtalho = selectedDateStr > today ? today : selectedDateStr;
+    // Mostrar pacientes com última visita entre 1 e limite dias atrás
     const prevDayPatients = patients.filter(p => {
       if (!isPatientActive(p, selectedDateStr)) return false;
-      return findMissingVisitDays(p, p.dataPrimeiraAvaliacao, fimAtalho).length > 0;
+      if (p.dataUltimaVisita >= selectedDateStr) return false;
+      const diff = diffEmDias(p.dataUltimaVisita, selectedDateStr);
+      return diff >= 1 && diff <= DAYS_ACTIVE_THRESHOLD;
     });
 
     if (prevDayPatients.length === 0) {
@@ -1030,14 +1033,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     prevDayTableBody.parentElement.style.display = 'table';
 
     prevDayPatients.forEach(p => {
-      const missing = findMissingVisitDays(p, p.dataPrimeiraAvaliacao, fimAtalho);
-      const faltaNoDia = missing.includes(selectedDateStr);
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${esc(p.pacienteNome)}<br><button type="button" class="btn-lacuna btn-lacuna-ficha" data-action="ver-lacunas" data-patient-id="${escAttr(p.id)}" data-fim="${escAttr(fimAtalho)}">${missing.length} sem lançamento</button></td>
+        <td>${esc(p.pacienteNome)}</td>
         <td>${esc(p.hospital)}</td>
         <td class="col-actions">
-           ${faltaNoDia ? `<button class="btn-action" title="Registrar 1 visita para a data selecionada" data-action="add-visit" data-patient-id="${escAttr(p.id)}">➕</button>` : ''}
+           <button class="btn-action" title="Registrar 1 visita para a data selecionada" data-action="add-visit" data-patient-id="${escAttr(p.id)}">➕</button>
         </td>
       `;
       prevDayTableBody.appendChild(tr);
@@ -1539,7 +1540,7 @@ São Paulo, ${dataExtenso}`;
 
           const virandoAlta = ehAlta && p.statusManual !== STATUS.ALTA;
           const novaDataPrimeira = editDataPrimeira.value || p.dataPrimeiraAvaliacao;
-          const novaDataAlta = today;
+          const novaDataAlta = p.dataUltimaVisita || novaDataPrimeira || today;
           if (virandoAlta && impedirAltaComLacunas({ ...p, dataPrimeiraAvaliacao: novaDataPrimeira }, novaDataAlta)) return;
 
           isProcessing = true;
